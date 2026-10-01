@@ -61,7 +61,14 @@ static PyObject *start(PyObject *self, PyObject *args) {
     /* Verify the descriptor before launching a worker and start at a steady level. */
     int result = gpio_write(w, duty == 65535);
     if (!result) result = pwm_start(&w->engine, gpio_write, w, frequency, duty);
-    if (result) { close(w->fd); free(w); return report(result); }
+    if (result) {
+        /* Startup may already have driven high. Best effort low before release;
+         * report the original failure even if this cleanup write also fails. */
+        gpio_write(w, 0);
+        close(w->fd);
+        free(w);
+        return report(result);
+    }
     PyObject *capsule = PyCapsule_New(w, CAPSULE, dispose);
     if (!capsule) { pwm_destroy(w->engine); close(w->fd); free(w); }
     return capsule;

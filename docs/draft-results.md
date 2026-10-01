@@ -37,3 +37,14 @@ Python 3.9–3.12, library coverage beyond Servo/DCMotor, wheel distribution,
 and accelerated backends. This record covers the initial development runs;
 see the repository's GitHub Actions page for subsequent CI results.
 See [the validation gates](validation.md).
+
+## Startup cleanup regression
+
+After fixing startup failure cleanup, the macOS suite passed 40 tests with one
+Linux-only test skipped. Five new cases compile the production extension and
+scheduler with test-only replacements for GPIO ioctl and thread creation.
+GPIO commands are recorded in an ordinary pipe; thread creation returns EAGAIN.
+The checks cover initial low, partial duty, and full-high duty, a failed cleanup
+write, and a failed initial write. They verify a low command is attempted before
+closing the duplicated descriptor and the original error is preserved even if
+cleanup also fails. These tests do not request or drive physical GPIOs.
