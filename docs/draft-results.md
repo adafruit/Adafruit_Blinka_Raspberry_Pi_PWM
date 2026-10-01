@@ -48,3 +48,23 @@ The checks cover initial low, partial duty, and full-high duty, a failed cleanup
 write, and a failed initial write. They verify a low command is attempted before
 closing the duplicated descriptor and the original error is preserved even if
 cleanup also fails. These tests do not request or drive physical GPIOs.
+
+## Pi 3B+ 32-bit validation
+
+Commit `15e784a` passed all 41 tests on `test-pi3`, a Raspberry Pi 3 Model B Plus
+Rev 1.3 running Raspbian GNU/Linux 13 (Trixie), kernel
+`6.18.50+rpt-rpi-v7`, and CPython 3.13.5 with a 32-bit interpreter (`armv7l`).
+
+The package was built from its source distribution into a
+`cp313-cp313-linux_armv7l` wheel and installed in a fresh virtual environment.
+Tests imported the installed Python package and production Linux extension,
+not an editable source checkout. The environment used Adafruit Motor 3.5.0 and
+the official gpiod 2.5.0 bindings, installed from an ARMv7 wheel on piwheels.
+All five injected startup-failure regressions passed on this platform too.
+
+Read-only discovery found `/dev/gpiochip0`, label `pinctrl-bcm2835`, exposing
+54 lines. The test user already belongs to the `gpio` group. No test requested
+or drove a physical GPIO, so these results establish 32-bit build/API coverage,
+not PWM waveform quality or timing performance.
+
+The retained test environment is `/tmp/blinka-pwm-pi3.ohoO6y/venv`.
