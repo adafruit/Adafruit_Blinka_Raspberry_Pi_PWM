@@ -1,5 +1,6 @@
-include LICENSE
-recursive-include native *.c *.h
+include LICENSE README.md CONTRIBUTING.md .pre-commit-config.yaml .readthedocs.yaml
+recursive-include src/native *.c *.h
 recursive-include tests *.c *.py
 recursive-include examples *.py
-recursive-include docs *.md *.patch
+recursive-include docs *.md *.rst *.py *.txt *.patch Makefile
+prune docs/_build

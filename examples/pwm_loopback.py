@@ -1,6 +1,6 @@
 """Compare draft and existing Blinka using two free GPIOs joined by a jumper.
 
-python examples/loopback.py --output 18 --input 23 --frequency 500 --backend draft
+python examples/pwm_loopback.py --output 18 --input 23 --frequency 500 --backend draft
 Repeat with --backend blinka in an environment using the existing backend.
 This is an interrupt-timestamp smoke test, not an external waveform measurement.
 """

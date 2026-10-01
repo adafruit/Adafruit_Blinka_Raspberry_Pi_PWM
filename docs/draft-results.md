@@ -34,5 +34,6 @@ Test environments retained for later evaluation:
 Pending: physical GPIO output and cleanup, loopback/scope measurements, timing
 and CPU comparisons with RPi.GPIO/lgpio, other Pi generations/architectures,
 Python 3.9–3.12, library coverage beyond Servo/DCMotor, wheel distribution,
-and accelerated backends. The CI workflow is provided but has not run on GitHub.
+and accelerated backends. This record covers the initial development runs;
+see the repository's GitHub Actions page for subsequent CI results.
 See [the validation gates](validation.md).

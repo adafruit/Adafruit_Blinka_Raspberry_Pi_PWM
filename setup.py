@@ -9,8 +9,8 @@ setup(
         [
             Extension(
                 "adafruit_blinka_raspberry_pi_pwm._native",
-                sources=["native/module.c", "native/pwm_engine.c"],
-                include_dirs=["native"],
+                sources=["src/native/module.c", "src/native/pwm_engine.c"],
+                include_dirs=["src/native"],
                 define_macros=[("_POSIX_C_SOURCE", "200809L")],
                 extra_compile_args=["-std=c11", "-Wall", "-Wextra", "-pthread"],
                 extra_link_args=["-pthread"],
