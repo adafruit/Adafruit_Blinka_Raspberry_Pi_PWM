@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include "pwm_engine.h"
+#include "pwm_shared.h"
 
 #define CAPSULE "adafruit_blinka_raspberry_pi_pwm.worker"
 /* GPIO v2 stable userspace ABI: two aligned u64s, ioctl number 0x0f.
@@ -16,7 +17,12 @@
 struct pwm_gpio_values { uint64_t bits, mask; } __attribute__((aligned(8)));
 _Static_assert(sizeof(struct pwm_gpio_values) == 16, "GPIO v2 values ABI size");
 #define PWM_SET_VALUES _IOWR(0xb4, 0x0f, struct pwm_gpio_values)
-typedef struct { pwm_engine *engine; int fd; } worker;
+typedef struct { pwm_engine *engine; pwm_shared *shared; int fd; } worker;
+
+static void destroy_worker(worker *w) {
+    if (w->shared) pwm_shared_destroy(w->shared);
+    else pwm_destroy(w->engine);
+}
 
 static int gpio_write(void *context, int value) {
     worker *w = context;
@@ -43,16 +49,17 @@ static PyObject *report(int result) {
 static void dispose(PyObject *capsule) {
     worker *w = PyCapsule_GetPointer(capsule, CAPSULE);
     if (!w) { PyErr_Clear(); return; }
-    pwm_destroy(w->engine);
+    destroy_worker(w);
     close(w->fd);
     free(w);
 }
 
 static PyObject *start(PyObject *self, PyObject *args) {
     (void)self;
-    int fd;
+    int fd, short_slice = 0, shared = 0;
     unsigned frequency, duty;
-    if (!PyArg_ParseTuple(args, "iII", &fd, &frequency, &duty)) return NULL;
+    if (!PyArg_ParseTuple(args, "iII|pp", &fd, &frequency, &duty,
+                         &short_slice, &shared)) return NULL;
     if (frequency < 1 || frequency > 10000 || duty > 65535) return report(EINVAL);
     worker *w = calloc(1, sizeof(*w));
     if (!w) return PyErr_NoMemory();
@@ -60,7 +67,12 @@ static PyObject *start(PyObject *self, PyObject *args) {
     if (w->fd < 0) { int saved = errno; free(w); return report(saved); }
     /* Verify the descriptor before launching a worker and start at a steady level. */
     int result = gpio_write(w, duty == 65535);
-    if (!result) result = pwm_start(&w->engine, gpio_write, w, frequency, duty);
+    if (!result) {
+        if (shared) result = pwm_shared_start(&w->shared, gpio_write, w,
+                                              frequency, duty, short_slice);
+        else result = pwm_start_with_slice(&w->engine, gpio_write, w,
+                                           frequency, duty, short_slice);
+    }
     if (result) {
         /* Startup may already have driven high. Best effort low before release;
          * report the original failure even if this cleanup write also fails. */
@@ -70,7 +82,7 @@ static PyObject *start(PyObject *self, PyObject *args) {
         return report(result);
     }
     PyObject *capsule = PyCapsule_New(w, CAPSULE, dispose);
-    if (!capsule) { pwm_destroy(w->engine); close(w->fd); free(w); }
+    if (!capsule) { destroy_worker(w); close(w->fd); free(w); }
     return capsule;
 }
 
@@ -81,19 +93,20 @@ static PyObject *configure(PyObject *self, PyObject *args) {
     if (!PyArg_ParseTuple(args, "OII", &capsule, &frequency, &duty)) return NULL;
     worker *w = PyCapsule_GetPointer(capsule, CAPSULE);
     if (!w) return NULL;
-    return report(pwm_configure(w->engine, frequency, duty));
+    return report(w->shared ? pwm_shared_configure(w->shared, frequency, duty)
+                           : pwm_configure(w->engine, frequency, duty));
 }
 
 static PyObject *check(PyObject *self, PyObject *capsule) {
     (void)self;
     worker *w = PyCapsule_GetPointer(capsule, CAPSULE);
-    return w ? report(pwm_check(w->engine)) : NULL;
+    return w ? report(w->shared ? pwm_shared_check(w->shared) : pwm_check(w->engine)) : NULL;
 }
 
 static PyObject *stop(PyObject *self, PyObject *capsule) {
     (void)self;
     worker *w = PyCapsule_GetPointer(capsule, CAPSULE);
-    return w ? report(pwm_stop(w->engine)) : NULL;
+    return w ? report(w->shared ? pwm_shared_stop(w->shared) : pwm_stop(w->engine)) : NULL;
 }
 
 static PyMethodDef methods[] = {

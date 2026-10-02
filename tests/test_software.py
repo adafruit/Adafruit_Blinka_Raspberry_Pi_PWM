@@ -126,3 +126,48 @@ def test_native_start_failure_releases_request(monkeypatch):
     with pytest.raises(OSError, match="startup"):
         _software.SoftwarePWM(18, 500, 0)
     assert request.released
+
+
+@pytest.mark.parametrize(
+    "setting,enabled",
+    [(None, False), ("1", True), ("0", False), ("true", False), ("", False)],
+)
+@pytest.mark.parametrize(
+    "shared_setting,shared_enabled",
+    [(None, False), ("1", True), ("0", False), ("true", False), ("", False)],
+)
+def test_scheduler_options_are_explicit_opt_ins(
+    monkeypatch, setting, enabled, shared_setting, shared_enabled
+):
+    calls = []
+    request = SimpleNamespace(fd=99, release=lambda: None)
+    native = SimpleNamespace(start=lambda *args: calls.append(args))
+    fake = SimpleNamespace(
+        request_lines=lambda *args, **kwargs: request,
+        LineSettings=lambda **kwargs: kwargs,
+    )
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setitem(sys.modules, "gpiod", fake)
+    monkeypatch.setitem(
+        sys.modules,
+        "gpiod.line",
+        SimpleNamespace(
+            Direction=SimpleNamespace(OUTPUT=1), Value=SimpleNamespace(INACTIVE=0)
+        ),
+    )
+    import adafruit_blinka_raspberry_pi_pwm
+
+    monkeypatch.setattr(
+        adafruit_blinka_raspberry_pi_pwm, "_native", native, raising=False
+    )
+    monkeypatch.setattr(_software, "_find_chip", lambda *args: "/dev/gpiochip0")
+    if setting is None:
+        monkeypatch.delenv("BLINKA_PWM_SHORT_SLICE", raising=False)
+    else:
+        monkeypatch.setenv("BLINKA_PWM_SHORT_SLICE", setting)
+    if shared_setting is None:
+        monkeypatch.delenv("BLINKA_PWM_SHARED", raising=False)
+    else:
+        monkeypatch.setenv("BLINKA_PWM_SHARED", shared_setting)
+    _software.SoftwarePWM(18, 500, 0)
+    assert calls == [(99, 500, 0, enabled, shared_enabled)]

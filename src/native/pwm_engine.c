@@ -6,12 +6,21 @@
 #ifdef __APPLE__
 #define _DARWIN_C_SOURCE
 #endif
+#ifdef __linux__
+#define _GNU_SOURCE
+#endif
 #include "pwm_engine.h"
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef __linux__
+#include "pwm_sched.h"
+#include <sched.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#endif
 
 struct pwm_engine {
     pthread_mutex_t lock;
@@ -22,8 +31,22 @@ struct pwm_engine {
     void *context;
     unsigned frequency, duty;
     uint64_t sequence, missed;
-    int stopping, joined, error;
+    int short_slice, ready, stopping, joined, error;
 };
+
+static void request_short_slice(void) {
+#if defined(__linux__) && defined(SYS_sched_getattr) && defined(SYS_sched_setattr)
+    struct pwm_sched_attr attributes = { .size = sizeof(attributes) };
+    if (syscall(SYS_sched_getattr, 0, &attributes,
+                (unsigned int)sizeof(attributes), 0U) < 0) return;
+    /* Preserve inherited non-normal policies, nice, flags and utilization hints.
+     * Unsupported kernels or denied requests simply retain the original setup. */
+    if (attributes.policy != SCHED_OTHER) return;
+    attributes.size = sizeof(attributes);  /* getter may report a larger kernel ABI */
+    attributes.runtime = 100000;          /* 100 us, not real-time priority */
+    (void)syscall(SYS_sched_setattr, 0, &attributes, 0U);
+#endif
+}
 
 static uint64_t now_ns(void) {
     struct timespec ts;
@@ -60,6 +83,15 @@ static void write_value(pwm_engine *e, int value) {
 static void *run(void *argument) {
     pwm_engine *e = argument;
     pthread_mutex_lock(&e->lock);
+#ifdef __linux__
+    /* Default 50 us timer coalescing distorts short pulses. Change only this
+     * worker's allowance, not the caller's timers or scheduling policy.
+     * Zero restores the default; 1 ns is the smallest nonzero allowance. */
+    if (prctl(PR_SET_TIMERSLACK, 1UL, 0UL, 0UL, 0UL) < 0) e->error = errno;
+#endif
+    if (!e->error && e->short_slice) request_short_slice();
+    e->ready = 1;
+    pthread_cond_signal(&e->changed);
     uint64_t start = now_ns();
     while (!e->stopping && !e->error) {
         unsigned frequency = e->frequency;
@@ -108,6 +140,11 @@ static int validate(unsigned frequency, unsigned duty) {
 
 int pwm_start(pwm_engine **out, pwm_writer writer, void *context,
               unsigned frequency, unsigned duty) {
+    return pwm_start_with_slice(out, writer, context, frequency, duty, 0);
+}
+
+int pwm_start_with_slice(pwm_engine **out, pwm_writer writer, void *context,
+                        unsigned frequency, unsigned duty, int short_slice) {
     *out = NULL;
     int result = validate(frequency, duty);
     if (result) return result;
@@ -118,6 +155,7 @@ int pwm_start(pwm_engine **out, pwm_writer writer, void *context,
     e->context = context;
     e->frequency = frequency;
     e->duty = duty;
+    e->short_slice = short_slice;
     result = pthread_mutex_init(&e->lock, NULL);
     if (result) { free(e); return result; }
     pthread_condattr_t attributes;
@@ -136,6 +174,20 @@ int pwm_start(pwm_engine **out, pwm_writer writer, void *context,
         free(e);
         return result;
     }
+    /* Do not expose a worker whose timing setup failed. The worker uses no
+     * Python API, so it can signal readiness while the caller holds the GIL. */
+    pthread_mutex_lock(&e->lock);
+    while (!e->ready) {
+        result = pthread_cond_wait(&e->changed, &e->lock);
+        if (result) {
+            e->stopping = 1;
+            pthread_cond_signal(&e->changed);
+            break;
+        }
+    }
+    if (!result) result = e->error;
+    pthread_mutex_unlock(&e->lock);
+    if (result) { pwm_destroy(e); return result; }
     *out = e;
     return 0;
 }

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Test-only syscall replacements: record GPIO commands in an ordinary pipe
- * and fail thread creation. Compiled with the unmodified production sources.
+ * and fail thread creation or worker timing setup. Production sources unchanged.
  */
 #include <errno.h>
 #include <pthread.h>
@@ -31,11 +31,22 @@ int ioctl(int fd, unsigned long request, ...) {
     return 0;
 }
 
-int pthread_create(pthread_t *thread, const pthread_attr_t *attributes,
+/* The build macro renames the header declaration; declare the real function
+ * explicitly so the timing-failure cases can launch an actual worker. */
+#undef pthread_create
+extern int pthread_create(pthread_t *, const pthread_attr_t *,
+                          void *(*)(void *), void *);
+
+int pwm_test_prctl(int option, ...) {
+    (void)option;
+    errno = EACCES;
+    return -1;
+}
+
+int pwm_test_pthread_create(pthread_t *thread, const pthread_attr_t *attributes,
                    void *(*entry)(void *), void *argument) {
-    (void)thread;
-    (void)attributes;
-    (void)entry;
-    (void)argument;
+    if (getenv("PWM_TEST_TIMER_FAILURE")) {
+        return pthread_create(thread, attributes, entry, argument);
+    }
     return EAGAIN;
 }

@@ -2,6 +2,7 @@
 """Own a gpiod v2 line request while the native worker drives its descriptor."""
 
 import operator
+import os
 import sys
 from pathlib import Path
 
@@ -89,7 +90,13 @@ class SoftwarePWM:
                     )
                 },
             )
-            self._handle = _native.start(self._request.fd, frequency, duty_cycle)
+            self._handle = _native.start(
+                self._request.fd,
+                frequency,
+                duty_cycle,
+                os.environ.get("BLINKA_PWM_SHORT_SLICE") == "1",
+                os.environ.get("BLINKA_PWM_SHARED") == "1",
+            )
         except BaseException:
             if self._request is not None:
                 self._request.release()

@@ -19,7 +19,13 @@ Record Blinka extensions and existing behaviors that differ from CircuitPython,
 particularly writable frequency without `variable_frequency=True`, float
 arguments, `period`, and `enabled`. Make an explicit migration decision for each.
 
-Check coexistence with gpiod digitalio, I2C, SPI, audio, and NeoPixel output.
+Check coexistence with gpiod digitalio, I2C, SPI, audio, NeoPixel output, and
+Piomatter matrix refresh on distinct GPIOs. Measure both PWM pulse widths and
+the other library's output under load; successful imports are not sufficient.
+Test both startup orders, independent deinitialization, and same-process and
+separate-process use. Select genuinely unused pins from the configured pinout:
+Piomatter's Adafruit Matrix Bonnet pinout includes GPIO23, and Active3 includes
+GPIO18. The current GPIO18/23 PWM-only captures are not coexistence tests.
 Include pins sharing a hardware PWM channel, but expect independent frequencies
 when the software engine is selected. Prevent two consumers driving the same
 pin; do not silently steal a line from an overlay or another program.
@@ -43,9 +49,15 @@ endpoints, tiny nonzero pulses, Python busy loops, I/O load, and CPU contention.
 Set quantitative pass thresholds from existing backend measurements; do not
 infer timing performance merely from accepting a frequency argument.
 
-The first engine uses a native thread per output and GPIO ioctl per edge.
+The default engine uses a native thread per output and GPIO ioctl per edge.
+The experimental `BLINKA_PWM_SHARED=1` engine shares a worker between outputs
+with the same scheduling opt-in, but still performs separate GPIO ioctls. Compare
+both engines with short-slice off and on, including independent retirement,
+mixed frequencies, output error isolation, stopped-handle lifetime, concurrent
+constructors, and fresh output construction in fork children. A slow ioctl can
+delay the other outputs in a group; reduced CPU use alone is not acceptance.
 System-call overhead may lose to RPi.GPIO's memory-mapped access. Measure this
-before choosing whether kernel PWM, RP1 PIO, or another native engine is required.
+before choosing whether non-PIO kernel PWM or another native engine is required.
 The draft has no realtime scheduling priority and makes no hard realtime promise.
 
 ## Platform and packaging matrix
@@ -64,7 +76,14 @@ normal operation as a non-root user, without changing boot configuration.
 
 ## Accelerated engines
 
-Evaluate configured kernel PWM, pwm-gpio, and pwm-pio devices by discovery of
+PIO PWM is out of scope, including selection through a kernel `pwm-pio` device.
+Verify the package works without `/dev/pio*` and with other libraries consuming
+PIO resources. It must not open PIO devices, claim state machines, load programs,
+configure PIO transfers, or change another consumer's PIO state. Distinct-GPIO
+NeoPixel/Piomatter coexistence tests are still required; avoiding PIO resource
+allocation does not prove timing under their CPU load.
+
+Evaluate configured non-PIO kernel PWM and pwm-gpio devices by discovery of
 their device/driver/DT identity rather than hard-coded pwmchip numbers. Preserve
 frequency/duty semantics and reject occupied channels. Test overlay availability,
 privileged setup, reboot requirements, channel sharing, and pinmux restoration
