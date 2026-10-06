@@ -695,3 +695,1123 @@ snapshot in `hardware-evaluation/2026-10-01/measurements.tar.gz`; see
 comparisons and investigation of latency tails, not an assumption that sharing
 workers solved them. Other-SBC adapters and non-PIO kernel PWM are candidate
 future work; existing `sysfs_pwmout` boards are not newly supported by this draft.
+
+## Pi 5 syscall/deadline diagnostics — October 6, 2026
+
+A fresh-context review of `bd9712f..d5debaf` found no confirmed correctness
+issues. Its GPIO-free macOS verification passed 73 tests with 23 Linux-only
+skips. This was a code review, not a timing acceptance result. The review excluded
+these result notes, the recovery artifacts, and the external measurement folder.
+
+After reboot, `test-pi5` was reachable at 31.8°C with clear firmware limiting
+flags. A new isolated environment at `/tmp/blinka-pwm-oct6.F3SDcm/venv` installed
+gpiod 2.5.0 and the unchanged production package from `d5debaf`. All 96 existing
+GPIO-free tests passed. Six additional lab-recorder tests passed; the complete
+Linux suite subsequently passed **102 tests**. The macOS suite passed 73 tests
+with 29 Linux-only skips. No GPIO is requested by these automated tests.
+
+The Pi still runs kernel `6.12.75+rpt-rpi-2712`, CPython 3.13.5, normal
+SCHED_OTHER/nice 0, all-four-CPU affinity, and the `ondemand` governor. Worker
+slices read 100000 ns with the existing short-slice opt-in; the caller retained
+2100000 ns. No priority, affinity, governor, kernel tracing, or system package
+configuration was changed. The user reconfirmed cooling and the same wiring:
+GPIO18/channel 0, GPIO23/channel 1, common ground, no competing devices.
+
+`tools/native_trace.c` and `tools/build_trace.py` build a **lab-only** extension
+from unchanged `module.c`, `pwm_engine.c`, and `pwm_shared.c`. Compile-time aliases
+wrap their GPIO v2 SET_VALUES ioctls and timed waits. A preallocated recorder
+stores monotonic begin/end/deadline, thread CPU elapsed, fd/level/result and tid,
+then flushes only at process exit. A trace preflight precedes GPIO requests.
+This build lives in a separate `/tmp` source copy; it does not replace the normal
+installation or alter `setup.py`. It is deliberately not a performance benchmark:
+clock reads and recording perturb timing, and unexpected process termination can
+lose the trace. See `tools/README.md` for interpretation and safety constraints.
+
+The same Saleae configuration (Logic 2 2.4.46, 10 MSa/s) recorded GPIO18 at 50 Hz,
+duty 4915 (target approximately 1500 µs), and GPIO23 at 500 Hz, duty 32768
+(approximately 1000 µs). After a three-second idle smoke capture, four loaded
+captures each ran for 20 seconds with four bounded CPU burners. The loaded
+instrumented shared mode ran twice, per-output once, and an uninstrumented
+shared control once. All used the short-slice opt-in. Endpoint temperatures
+were 45.75–57.30°C; firmware flags stayed `throttled=0x0`. These are endpoint
+readings plus persistent limiting history, not continuous thermal monitoring.
+All outputs finished low with at least 0.205 s quiet tail, and both pins were
+unclaimed after cleanup.
+
+| Loaded capture | GPIO18 high min–max, µs | GPIO23 high min–max, µs | Largest timeout lateness, µs | Largest traced ioctl, µs |
+| --- | --- | --- | --- | --- |
+| Instrumented shared, round 1 | 1503.7–1506.3 | 796.8–1037.2 | 209.647 | 12.722 |
+| Instrumented per-output | 487.5–1532.5 | 324.9–2656.3 | 1661.993 | 90.868 |
+| Uninstrumented shared control | 1493.3–1533.2 | 987.5–1084.7 | Not recorded | Not recorded |
+| Instrumented shared, round 2 | 1504.3–1506.9 | 795.1–1086.6 | 211.008 | 98.661 |
+
+Every trace had zero dropped, file-I/O or clock errors. Successful level-changing
+ioctl counts matched the external digital transitions exactly on each channel;
+correlation uses edge ordinal, not an assumed common clock origin. All
+instrumented GPIO writes succeeded. Wait results are Linux errno values
+(`ETIMEDOUT=110`), not the analyzer host's macOS values. Sampling quantization is
+100 ns, and analyzer clock accuracy remains uncalibrated.
+
+The per-output capture provides concrete localization of three long GPIO23
+highs. At analyzer rise times 16.0295896, 16.5496051 and 17.1096217 s, highs
+measured 2655.1, 2655.1 and 2656.3 µs. Associated timed waits returned
+1661.899, 1661.993 and 1660.159 µs after their requested deadlines, while using
+only 2.333, 2.297 and 6.222 µs of thread CPU across approximately 2652 µs wall
+time. Falling GPIO ioctls took just 0.704, 0.722 and 2.056 µs. Thus those
+stretched highs coincide with late wait returns, not slow falling writes.
+The following highs shortened to 343.1, 342.9 and 344.3 µs as the fixed-deadline
+schedule recovered. This does not establish a kernel cause: timed waits include
+mutex reacquisition, and elapsed time alone cannot distinguish timer delivery,
+run-queue delay, blocking, or preemption.
+
+Not every distortion is inside a wait. GPIO18's shortest high, 487.5 µs, has a
+preceding wait only 2.894 µs late, followed by **1017.507 µs between the recorded
+wait end and rise-ioctl start**. Three approximately 40 ms GPIO18 periods similarly
+have timely wait returns followed by approximately 2655 µs gaps to low writes,
+with the expired rises suppressed. Those gaps are outside the measured wait
+and ioctl intervals, but include recorder head/tail bookkeeping and native-loop
+code; they are not measurements of pure application CPU time. The per-output
+capture has eight GPIO18 and ten GPIO23 highs outside ±20% of target, so this
+is still not a suitable acceptance result for loaded servo timing.
+
+In shared round 1, the largest late wait occurs while GPIO23 is low: the delayed
+rise stretches that low to 1209.2 µs and shortens the next high to 796.8 µs.
+Analysis therefore records the wait before a rise separately from waits during
+the high. An interval from the largest in-high wait to a fall can also contain
+other normal waits; it is not necessarily computation overhead.
+
+The earlier shared-mode approximately 3001 µs servo highs did **not** recur in
+these two traced rounds or the one untraced control. That does not invalidate
+the October 1 captures or prove the issue fixed. The new evidence establishes
+that userspace service latency can appear both in timeout returns and between
+recorded operations; it does not prove an improvement from instrumentation or
+isolate the cause of the earlier shared outliers. PIO remains excluded, both
+options remain default-off, and Blinka has not been switched over.
+
+The new raw captures and reproducible scripts are preserved separately in
+`hardware-evaluation/2026-10-06/diagnostics.tar.gz`; see its README. The next
+useful investigation is kernel-level timer/scheduling attribution or a non-PIO
+kernel/hardware PWM path, while retaining software fallback for other pins.
+Further userspace parameter tuning alone is not justified by these traces.
+
+### Private kernel trace follow-up
+
+The user approved one additional 20-second per-output capture with four bounded
+CPU burners. Existing `pi` passwordless sudo was used non-interactively; no
+password was requested or sudo configuration changed. Only a newly created
+tracefs instance was configured: `mono` clock, 8192 KiB per CPU, filtered
+worker scheduling and timer lifecycle events. Expiry events selected
+`hrtimer_wakeup` callbacks, including other sleepers; attribution matches only
+the workers' own timer generations. No instance-wide PID filter was used because
+expiry and wakeup can execute in another task's context. Global trace controls,
+priorities, affinity, governor, PIO, and production source remained unchanged.
+
+The private instance was stopped, exported and removed normally. Kernel buffers
+reported zero overruns, commit overruns or dropped events on all four CPUs.
+Native tracing recorded 44012 records with zero drops/errors. Begin/end markers
+verified the kernel/native monotonic clock relationship. Kernel text timestamps
+have **1 µs resolution**; the Saleae clock is correlated only by edge ordinal,
+not aligned numerically to the kernel clock. Both channels' edge counts matched
+successful level-changing writes exactly (GPIO18: 2002; GPIO23: 19998).
+
+| Output | High min–max, µs | Longest period, µs | Estimated omitted cycles |
+| --- | --- | --- | --- |
+| GPIO18, 50 Hz | 1351.0–1525.5 | 20151.2 | 0 |
+| GPIO23, 500 Hz | 814.9–1054.0 | 6004.4 | 2 |
+
+Neither channel had a complete steady-state high outside ±20% of its target in
+this run. GPIO23 nevertheless missed two cycles, so acceptable-looking high
+widths alone do not establish correct PWM delivery.
+
+The worst GPIO23 wait (native sequence 8150, worker TID 2805) returned
+**3758.014 µs late**. Its matched monotonic timer had 1 ns permitted slack. The
+printed callback timestamp is only 0.544 µs after the requested deadline, below
+the trace's 1 µs precision. Wakeup was observed at 3879.292248 s; switch-in on
+CPU2 did not occur until 3879.296003 s: **3755 µs runnable but off-CPU**. The
+switch-out/in records name bounded burner PID 2802 as the neighboring task.
+The native wait used only 4.167 µs thread CPU across 4746.909 µs wall time.
+This localizes almost all of this particular timeout tail to delayed CPU service
+after wakeup, rather than a millisecond-late timer callback or GPIO ioctl.
+The filtered trace does not expose every unrelated task or the scheduler's
+internal decision, so it does not prove why resumption was delayed.
+
+The wait occurred while GPIO23 was low. Fixed-deadline recovery suppressed
+expired rises rather than emitting a catch-up burst; ordinal-correlated Saleae
+edges contain the 6004.4 µs period and approximately 5000.3 µs low interval.
+This explains the missed cycles without implying a stretched high for this event.
+
+GPIO18's worst wait (sequence 11922) was 153.909 µs late, including 146 µs from
+wakeup to switch-in. Its subsequent high shortened to 1351.0 µs. Its largest
+adjacent wait-to-write gap (sequences 31148/31151) was 30.538 µs, including three
+runnable switch-out intervals totaling 17 µs around `kworker/u21:0`; the rest
+is not established as pure application work. No non-runnable interval appears
+inside that gap. The earlier millisecond-scale post-wait gaps did not recur.
+
+Endpoint temperatures were 46.85–58.95°C with clear firmware history. Both
+outputs ended low with at least 0.898 s quiet tail. Read-only postflight checks
+found no trace instances, no recorded parent/worker/burner PIDs remaining,
+GPIO18/23 unclaimed, unchanged global trace controls, and `throttled=0x0`.
+The generated-capture/helper harnesses passed 19 GPIO-free tests (plus 12
+subtests); kernel analyzer self-tests and lint passed.
+
+This is one doubly instrumented diagnostic run, **not a production performance
+comparison or acceptance result**. It supports scheduler service delay as an
+observed contributor in this run, not attribution of the earlier shared-mode
+outliers or proof that any tuning fixed them. The next design investigation is
+a non-PIO kernel/hardware PWM path for suitable pins, while retaining compatible
+software fallback. Neither opt-in is promoted and Blinka remains unchanged.
+Raw evidence, clock/filter metadata, postflight checks, and exact diagnostic
+scripts are preserved separately in
+`hardware-evaluation/2026-10-06/kernel-diagnostics.tar.gz`.
+
+### Non-PIO kernel PWM investigation — read-only checkpoint
+
+The user connected Saleae channels 2/3 to `test2-pi4` GPIO18/23, leaving the
+Pi 5 on channels 0/1. An initially reported `test1-pi4` hostname was corrected
+by the user. Ground and fan signal-pin isolation must be confirmed before
+driving the newly connected Pi 4; no new signals or overlays were enabled during
+this read-only investigation.
+
+The benches currently differ:
+
+| Bench | Kernel | Header hardware PWM | Other live PWM |
+| --- | --- | --- | --- |
+| Pi 5 | `6.12.75+rpt-rpi-2712` | RP1 `pwm@98000` disabled; GPIO18 maps to channel 2 | RP1 `pwm@9c000`, channel 3 requested by `cooling_fan` |
+| Pi 4 Rev 1.4 | `6.18.50+rpt-rpi-v8` | BCM `pwm@7e20c000` disabled; GPIO18 maps to channel 0 | No PWM chips instantiated; second BCM controller also disabled |
+
+GPIO23 has no hardware PWM route on either board. Installed `pwm` and
+`pwm-gpio` overlays and the `pwm-gpio` module are present on both. The old
+Pi 4 temporary measurement environment is gone; its new kernel and Python
+build mean the October 1 comparisons are not a matched current-system baseline.
+Pi 4 non-interactive sudo currently requests a password; none was supplied.
+The Pi 5 fan controller is separate from header PWM and must remain untouched.
+
+Primary-source provenance matters. The official packaging changelogs identify
+[Pi 5 kernel commit `89050b1`](https://github.com/RPi-Distro/linux-packaging/blob/8b252b157d0c946b50f1360980e7f079e545e07d/debian/changelog)
+and [Pi 4 kernel commit `cff533a`](https://github.com/RPi-Distro/linux-packaging/blob/57beb6cc27d4a9e7997413e1213e6d7f4a346c03/debian/changelog).
+The latter core serializes per-controller apply operations; the former does
+not, despite newer generic documentation describing that guarantee. An eventual
+adapter must account for the older controller-wide read/modify/write risk.
+Both sysfs interfaces still apply period and duty through separate writes.
+
+Two candidates warrant waveform evaluation:
+
+- **Hardware PWM on GPIO18.** BCM and RP1 have independent per-channel period
+  registers; a shared source clock does not require matching frequencies. Pins
+  sharing the same hardware channel are aliases, not independent outputs.
+  GPIO18 uses different channel numbers across the two families. The generic
+  overlay's legacy function mapping is translated by the RP1 pinctrl driver.
+  Discover by device-tree/controller identity and active routing, never by a
+  hard-coded `pwmchipN`. See the exact [RP1 driver](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/pwm-rp1.c)
+  and [Pi 4 BCM driver](https://github.com/raspberrypi/linux/blob/cff533aec2fa601846766b32ff57204e0a61bed7/drivers/pwm/pwm-bcm2835.c).
+- **Kernel software PWM on GPIO23.** `pwm-gpio` runs its GPIO toggles from a
+  monotonic hrtimer, without a userspace waveform thread or PIO. Both exact
+  driver revisions use the same edge logic: pending updates at period end,
+  static endpoints, and rejection of sleeping GPIO controllers. They advance
+  from previous expiry rather than skipping expired phases. Delayed callbacks
+  can therefore catch up with short pulses; IRQ latency and write cost remain
+  measurement questions. This is not hardware PWM or a timing guarantee.
+  See the [Pi 5 driver](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/pwm-gpio.c)
+  and [Pi 4 driver](https://github.com/raspberrypi/linux/blob/cff533aec2fa601846766b32ff57204e0a61bed7/drivers/pwm/pwm-gpio.c).
+
+Neither prospective header provider offers a suitable combined-state
+character-device API: Pi 5 predates it, and the newer Pi 4 BCM/`pwm-gpio`
+drivers lack waveform callbacks. Sysfs exports are global requests, not
+process/FD leases, and another sysfs writer can alter them. Exported channels
+survive process death; unexport alone does not universally stop output.
+Disabled PWM output is unspecified by the generic API. Require explicit normal
+polarity and endpoint verification, low-before-disable/release, ownership checks,
+and error-reporting cleanup. A future frequency setter must rescale duty and
+handle partially applied writes. See [Linux PWM semantics](https://www.kernel.org/doc/html/v6.12/driver-api/pwm.html).
+
+A direct wrapper around Blinka's current `sysfs_pwmout` is not suitable: it
+unexports a pre-existing channel before export and does not enforce the draft's
+ownership/fork/lifecycle contract. Reusing the Linux interface is an opportunity,
+not permission to take over existing channels or fall back onto their GPIOs.
+
+The initial proposal was runtime Pi 5 `pwm`/`pwm-gpio` overlays, endpoint
+checks, a 3-second idle capture and a 20-second four-burner capture, followed
+by overlay removal. **That removal plan was withdrawn before any activation.**
+Further exact-version source review identified two unsafe teardown paths:
+
+- Pi 5's RP1 probe stores private data on the PWM-chip device but never sets
+  platform driver data. Its remove callback retrieves the unset platform
+  pointer and dereferences `pc->clk`. It also duplicates managed clock cleanup.
+  This is a concrete source-derived defect, not a reproduced kernel crash.
+  See [probe/remove](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/pwm-rp1.c#L125)
+  and [allocation helper](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/core.c#L1011).
+- Both exact `pwm-gpio` revisions call unmanaged `pwmchip_add()` but provide
+  neither a remove callback nor managed PWM unregistration. Managed allocation
+  only releases the chip reference; timer cancellation and GPIO release do not
+  remove the PWM core's registry entry. Hot removal can therefore leave stale
+  provider registration or a freed chip pointer. See [Pi 5 allocation/registration](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/core.c#L998)
+  and [Pi 4 registration/unregistration](https://github.com/raspberrypi/linux/blob/cff533aec2fa601846766b32ff57204e0a61bed7/drivers/pwm/core.c#L2552).
+
+Do not remove these runtime overlays, unbind their drivers or unload their
+modules as experiment cleanup. No teardown was attempted and both boards are
+unchanged. The revised proposal, requiring fresh user approval, is to run the
+same Pi 5 checks but explicitly stop/release the outputs and leave the providers
+configured until a controlled reboot. GPIO18/23 would remain assigned to kernel
+PWM until then. No boot-file edits, PIO use, production backend changes or
+fan-controller changes are proposed. Pi 4 additionally needs confirmed ground/
+fan signal-pin isolation and user-run privileged setup or suitable sudo access.
+
+### Pi 5 non-PIO kernel PWM — hardware checkpoint
+
+The user approved use of the dedicated test Pis. On the Pi 5 only, runtime
+overlays were enabled with `dtoverlay pwm pin=18 func=2` and
+`dtoverlay pwm-gpio gpio=23`. No boot file was edited. Discovery verified the
+header RP1 `pwm@98000`, channel 2, for GPIO18 and an RP1 GPIO23 `pwm-gpio`
+provider, channel 0. The live header clock was 50 MHz. The separate
+`pwm@9c000` fan controller and its `cooling_fan` consumer were not manipulated.
+There was no PIO, scheduler-policy, affinity, governor or kernel change.
+
+All runs used the exact helper SHA256
+`ed8e60cd529a9cfdd231994627ef3c1fc1aefb7abf3673c66cd44e38745f119d`,
+unprivileged as `pi`. It refused existing exports, tracked only successful fresh
+exports, waited for udev permissions, serialized configuration writes, and
+explicitly commanded low before disable/unexport. Signal handlers deferred
+interruption during cleanup; a 30-second alarm bounded normal execution.
+Loaded runs started four independent CPU burners with 25-second self-expiry.
+This is a lab helper, not a production ownership or crash-recovery solution.
+
+#### Static endpoints: RP1 hardware full duty is not constant high
+
+Seven 0.2-second holds requested the GPIO18/GPIO23 sequence
+`00,10,00,01,00,11,00`, with normal polarity and enabled outputs. Both captures
+began and ended low. GPIO23 showed the expected four transitions and no detected
+short interior dips. GPIO18 failed the strict four-transition check:
+
+| Capture | Nominal sample interval | GPIO18 transitions | Interior low dips |
+| --- | --- | --- | --- |
+| `oct6-pi5-kernel-endpoints`, 10 MSa/s | 100 ns | 10 | 3, each digitized as one sample |
+| `oct6-pi5-kernel-endpoints-100msps`, 100 MSa/s | 10 ns | 40 | 18, each digitized as 10–20 ns |
+
+At the higher rate, every interior cycle in both full-duty holds has a detected
+notch. These are digital threshold-crossing measurements, not analog pulse-width
+proof. The analyzer timebase was not calibrated. The initial higher-rate capture
+process still had the old 10-MS-only analyzer imported; replay with the updated
+offline analyzer rejected the actual extra edges. Raw files and explicit
+`endpoint-rejection.json` reports preserve both failures; no filter was used to
+reclassify them as passing endpoints.
+
+The exact [RP1 driver](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/pwm-rp1.c#L89)
+programs equal DUTY and RANGE at full duty and has no full-duty special case.
+The [RP1 datasheet, section 3.4.4.1](https://datasheets.raspberrypi.com/rp1/rp1-peripherals.pdf#page=37)
+describes an inclusive RANGE count and output high only when COUNT is below
+DUTY. Together these predict a nominal one-20-ns-clock low notch at 50 MHz,
+consistent with the higher-rate waveform. This is a strong source-and-waveform
+explanation, not a direct register read or a tested driver correction. Sysfs
+readback reported the requested full duty but does not prove constant physical
+high. A driver correction or separately tested static-endpoint strategy is
+needed before this hardware path can preserve CircuitPython's full-duty behavior.
+
+#### Ordinary duties: promising hardware and kernel-software timing
+
+After identifying the endpoint failure, interior duties were measured separately:
+GPIO18 at 50 Hz/duty 4915 (approximately 1500 µs high), GPIO23 at
+500 Hz/duty 32768 (approximately 1000 µs high), Saleae channels 0/1 at
+10 MSa/s. A 3-second idle run and two 20-second four-burner runs were recorded.
+The summary trims 0.05 seconds from each end of the active edge train.
+
+| Capture | GPIO18 period range (µs) | GPIO18 high range (µs) | GPIO23 period range (µs) | GPIO23 high range (µs) |
+| --- | --- | --- | --- | --- |
+| `oct6-pi5-kernel-idle` | 20000.8–20000.9 | 1500.0–1500.1 | 1998.5–2001.4 | 998.5–1001.8 |
+| `oct6-pi5-kernel-loaded` | 20000.8–20000.9 | 1500.0–1500.1 | 1999.0–2000.9 | 999.0–1001.6 |
+| `oct6-pi5-kernel-loaded-r2` | 20000.8–20000.9 | 1500.0–1500.1 | 1998.7–2001.3 | 998.7–1001.8 |
+
+Trimmed complete-cycle counts were GPIO18 143/993/993 and GPIO23
+1449/9950/9950. No analyzed period exceeded 150% of target; no high was outside
+20% of target. No draft-scheduler omitted-cycle estimate is applied to these
+kernel providers. The small hardware frequency offset cannot be assigned solely
+to the RP1 clock from an uncalibrated analyzer. Remote monotonic phase timestamps
+are not aligned to Saleae time.
+
+The narrow GPIO23 deviations in that table describe **steady state only**.
+Including startup/shutdown, complete raw GPIO23 high widths were
+993.1–1017.3 µs and 982.3–1016.8 µs for the two loaded runs; raw periods were
+1991.1–2017.0 µs and 1981.5–2027.7 µs. No raw complete period exceeded
+150% of target either. Endpoint transition timing needs separate acceptance;
+the trimmed figures are not bounds for the entire output lifecycle.
+These loaded-run extrema occur in the first two cycles; deviations beyond the
+narrow steady-state ranges were confined to the first approximately 20.01 ms
+of the physical train. No corresponding shutdown outlier was found. This
+localization does not identify the startup cause.
+
+The loaded GPIO23 results are much more stable than the earlier userspace worker
+captures, consistent with avoiding runnable-but-unscheduled waveform threads.
+They are not a matched implementation benchmark or evidence for all frequencies,
+boards and workload types. Kernel hrtimer interrupt latency, expired-phase
+catch-up, variable frequency/duty updates, independent shutdown, endpoint
+transitions, errors/fork/crash behavior and ownership still need acceptance work.
+The good interior-duty measurements do not cancel the RP1 endpoint failure.
+
+#### Cleanup and recovery
+
+All five helpers reported successful low/disable/unexport with no cleanup
+errors. External low tails were at least 0.47 seconds. Temperatures before/after
+were 46.85/46.85°C and 46.85/47.40°C for endpoints, 47.95/46.85°C idle,
+48.50/58.95°C loaded, and 46.85/57.85°C for the loaded repeat; all firmware
+limiting flags remained zero. Postflight found both pins physically read low,
+no userspace PWM exports and no recorded burner PIDs remaining. Fan ownership
+remained `cooling_fan`; its normal thermal-control duty changed during the runs.
+The boot configuration SHA256 before and after remained
+`b7c4bef8c3e955d6e9b93b0f209ce4b4301549796978b845fbb4ff8ba48f7776`.
+
+The two runtime overlays remain loaded until reboot: GPIO18 is still muxed to
+header PWM and GPIO23 remains reserved by its kernel PWM provider. This is
+intentional, not complete restoration of GPIO ownership. Do not hot-remove,
+unbind or unload these providers. Pi 4 is unchanged and its password-requiring
+sudo still prevents unattended privileged setup.
+
+The GPIO-free helper/orchestration/waveform/rejection tests passed 95 cases;
+lint passed. Production source and Blinka integration remain unchanged from
+`d5debaf0e5caafa1fdf5a7619e1ae2e8cd41f1f4`. The next useful steps are a safe
+full-duty strategy and matched Pi 4 kernel-PWM evaluation, not replacing the
+existing backend yet.
+
+Raw captures, both rejected-endpoint reports, original source snapshots and
+final GPIO-free tools/tests are preserved in
+`hardware-evaluation/2026-10-06/kernel-pwm-evaluation.tar.gz`; see its README
+for hashes, source-version differences and verified recovery instructions.
+
+### Pi 4 non-PIO kernel PWM — hardware checkpoint
+
+The user ran the privileged runtime setup on `test2-pi4` and explicitly
+confirmed channel 2 → GPIO18, channel 3 → GPIO23, common ground, and neither
+GPIO used by the fan. All captures then ran unprivileged as `pi`, without
+changing sudo policy. The board is Pi 4 Model B Rev 1.4, kernel
+`6.18.50+rpt-rpi-v8`. Strict live discovery selected BCM `pwm@7e20c000`,
+channel 0, for GPIO18 and the BCM2711 GPIO23 `pwm-gpio` provider, channel 0.
+The separate audio controller was not selected; its configuration was not
+changed. Clock metadata reported 50,000,001 Hz for the header PWM clock.
+
+The Pi 4-specific discovery wrapper reused the ownership, signals, thermal
+gates, bounded CPU load and low/disable/unexport logic from the Pi 5 lab helper.
+Core helper SHA256:
+`7cb4ea051e346b38b3276b92e5e0edcd9f24f4ed36f7d4f4eeffa4800f8e2111`.
+Pi 4 wrapper SHA256:
+`ce9765a79d3e20b63a612248a2566e26ea8b2ddd45c71bbb7a3173e8885dc421`.
+The core differs from the Pi 5's exact measured helper only by formatting,
+import sorting and comments. All existing Pi 5 snapshots remain unchanged.
+
+#### Endpoints pass at matched digital resolution
+
+Both `oct6-pi4-kernel-endpoints` (10 MSa/s) and
+`oct6-pi4-kernel-endpoints-100msps` (100 MSa/s) passed the strict physical
+`00,10,00,01,00,11,00` pattern: exactly four transitions per channel, normal
+polarity, low initial/final states, independent static highs and the expected
+both-high overlap. No extra transitions were detected in the full-duty holds,
+including at the 10-ns nominal sample interval used for the Pi 5 notch test.
+This is finite digital threshold-crossing evidence, not proof of absence of
+all analog transients. Neither the analyzer clock nor analog pulse widths were
+calibrated. Glitch filtering was disabled in every recorded capture.
+
+GPIO18's high holds were approximately 200/200 ms in the first capture and
+200/220 ms in the higher-rate capture; GPIO23's were approximately 203/203 ms
+and 201/201 ms. Holds include configuration/readback overhead; one captured
+hardware hold differs from the request by approximately one PWM period. The
+measurements do not separate syscall/readback time from hardware effects.
+They establish static levels
+and independence, not immediate setter response or shared phase alignment.
+The full-duty problem observed on RP1 therefore was not reproduced with the
+Pi 4 BCM provider on this bench.
+
+#### Interior-duty timing
+
+The same GPIO18 50 Hz/duty 4915 and GPIO23 500 Hz/duty 32768 profiles were
+recorded at 10 MSa/s for 3 seconds idle and twice for 20 seconds with four
+bounded CPU burners. These are matched profiles, not a matched kernel-version
+benchmark: the Pi 4 and Pi 5 have different CPUs, GPIO controllers and kernels.
+
+| Capture | GPIO18 period range (µs) | GPIO18 high range (µs) | GPIO23 period range (µs) | GPIO23 high range (µs) |
+| --- | --- | --- | --- | --- |
+| `oct6-pi4-kernel-idle` | 19999.6–19999.7 | 1499.9–1500.0 | 1998.8–2001.2 | 998.9–1000.1 |
+| `oct6-pi4-kernel-loaded` | 19999.6–19999.7 | 1499.9–1500.0 | 1999.4–2000.7 | 999.4–1000.2 |
+| `oct6-pi4-kernel-loaded-r2` | 19999.6–19999.7 | 1499.9–1500.0 | 1993.1–2007.0 | 994.8–1002.3 |
+
+These figures trim 0.05 seconds at each end of the physical edge train.
+Complete trimmed-cycle counts were GPIO18 143/994/994 and GPIO23
+1450/9951/9951. The repeated loaded GPIO23 capture has a 7.0-µs maximum
+absolute period error and about 5.22-µs maximum absolute high-width error;
+the first run's sub-microsecond results are not a reproducible universal bound.
+No trimmed period exceeded 150% of target and no trimmed high differed by
+20% from target. Omitted-cycle estimates specific to the draft userspace
+scheduler are intentionally not applied. The hardware frequency offset cannot
+be separated from analyzer clock accuracy here. Pi monotonic timestamps are
+not aligned to Saleae timestamps.
+
+Untrimmed GPIO23 loaded periods were 1985.3–2014.2 µs and
+1986.5–2014.5 µs for the repeat; complete high widths were 990.5–1022.8 µs
+and 988.5–1013.8 µs. The full-train extrema occur early, within approximately
+38 ms, so the trimmed table must not be treated as a whole-lifecycle bound.
+Last complete highs were 1002.2 and 1002.7 µs. The hardware ranges remain
+unchanged when including the full train. Full-train reports preserve extrema
+with their Saleae times and offsets from the first physical rising edge;
+neither those times nor the phase logs identify the cause of the deviations.
+
+#### Cleanup and limits
+
+All five helpers reported successful fresh-export release with no cleanup
+errors. Low tails were at least 0.58 seconds. Before/after temperatures were
+34.076/32.615°C for endpoints, 34.563/33.589°C idle, 33.102/46.738°C loaded,
+36.024/48.686°C for the loaded repeat, and 36.024/35.537°C for the higher-rate
+endpoints; all firmware limiting flags remained zero. Postflight showed both
+pin levels low, no userspace PWM exports and no recorded burner PIDs remaining.
+The boot configuration SHA256 stayed
+`90a446821551a9df109ec1a77a79f6518fe974517d982d371c5e9efd6bbc98c3`.
+
+The user-enabled `pwm` and `pwm-gpio` runtime overlays remain loaded until
+reboot. GPIO18 is still muxed to hardware PWM and GPIO23 is still reserved
+by its kernel provider. Do not hot-remove/unbind/unload `pwm-gpio`; stopping
+the exported waveform is not removal of the provider. The Pi 5 was not driven
+or reconfigured during this evaluation. No PIO, boot-file, kernel, scheduler
+policy, affinity, governor or production backend change was made.
+
+Kernel software PWM is promising on both benches for the measured profile,
+without the PIO-sharing concern. Broader frequencies/duties, IRQ/I/O workloads,
+frequency changes, independent shutdown, ownership/fork/crash/error behavior,
+older board/kernel coverage and a Pi 5 constant-high strategy remain necessary
+before adopting a new backend. These results do not establish drop-in readiness.
+
+All 282 combined GPIO-free helper, orchestration, waveform, rejection and
+full-train tests passed. Lab lint passed with the cosmetic RUF007
+consecutive-pair `zip` suggestion explicitly excluded for the offline utility.
+Raw evidence, exact helper/source snapshots and final tools/tests are preserved
+in `hardware-evaluation/2026-10-06/kernel-pwm-pi4-evaluation.tar.gz`.
+
+### Pi 5 constant-high workaround — focused hardware checkpoint
+
+On the same confirmed Pi 5 GPIO18/channel 0 bench, two short captures tested
+**enabled inverse polarity with zero duty** as a replacement representation for
+constant high. No PIO, direct register access, kernel patch, package install or
+production backend change was made. Only a fresh header RP1 `pwm@98000`
+channel 2 export was used; GPIO23 and the separate fan controller were untouched.
+The kernel remained `6.12.75+rpt-rpi-2712`.
+
+The [exact kernel's sysfs polarity handler](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/core.c#L656)
+accepts `normal` and `inversed`, including changes while enabled.
+The [RP1 driver implements inversion](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/pwm-rp1.c#L75)
+without a special-case full-duty representation. Inverse-zero avoids the
+normal-full comparator boundary identified in the earlier rejected captures.
+This is a tested userspace representation, not a correction to the driver.
+A future wrapper could preserve the caller's `duty_cycle=65535` while using
+inverse-zero internally, and restore normal polarity for interior duties.
+That mapping is not implemented in the production `PWMOut` API here.
+
+#### Captured endpoints and ordinary-duty recovery
+
+`oct6-pi5-inverse-endpoints` and `oct6-pi5-inverse-endpoints-r2` both use
+100 MSa/s, channel 0 only, physical Logic 8, with glitch filtering disabled
+as verified from each saved `.sal` file. Each helper requests this nine-phase
+sequence: normal low 0.2 s, ordinary PWM 0.4 s, low 0.2 s, inverse-zero
+high 0.3 s, low 0.2 s, inverse-zero high 0.3 s, low 0.2 s, ordinary PWM
+0.4 s, final low 0.2 s. Ordinary PWM is 50 Hz/duty 4915. Polarity changes
+are conservatively performed while disabled; normal low/interior duty writes
+do not toggle enable. The total requested phase holds are 2.4 seconds.
+
+| Capture | First continuous high (ms) | Second continuous high (ms) | Extra captured dips |
+| --- | --- | --- | --- |
+| `oct6-pi5-inverse-endpoints` | 300.60109 | 300.57365 | 0 |
+| `oct6-pi5-inverse-endpoints-r2` | 300.57336 | 300.60780 | 0 |
+
+Both strict analyses pass. Each waveform has exactly 84 transitions: twenty
+complete ordinary pulses before the holds, two continuous high holds, and
+twenty complete recovery pulses. No extra transition was filtered or merged.
+All four ordinary pulse trains have periods 20000.88–20000.89 µs and high
+widths 1500.02–1500.03 µs, including their first/last complete pulses.
+The recovery timing therefore matches the controls at this digital resolution.
+These captures do not repeat the original normal-full baseline; that earlier
+100-MS capture and its explicit failure remain unchanged.
+
+The high holds include switching/readback overhead and exceed the requested
+300 ms slightly. Low gaps are approximately 200–220 ms. A low separator
+precedes recovery, so **direct constant-high → interior PWM was not tested**.
+Pi monotonic phase clocks are not aligned to Saleae time; these observations
+do not establish immediate setter response or transition latency. The nominal
+sample interval is 10 ns, with no calibrated analyzer timebase or analog scope
+measurement. No captured dips is finite threshold-crossing evidence, not proof
+that all shorter or non-threshold-crossing transients are absent.
+
+#### Cleanup, verification and next step
+
+Inverse-zero makes a normal duty-zero cleanup unsafe. The separate diagnostic
+owner restores normal polarity and zero duty while disabled, verifies that
+requested state, enables and verifies low, settles for 0.1 s, then disables
+and unexports. Cleanup retains the owned export if safe recovery or final
+disable cannot be confirmed, and reports failure instead of success JSON.
+[Disabled PWM has no guaranteed electrical level](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/Documentation/driver-api/pwm.rst#L58);
+[RP1 release is not an emergency-low command](https://github.com/raspberrypi/linux/blob/89050b1059997d38d55462b323b099a6436dc10d/drivers/pwm/pwm-rp1.c#L64).
+Readbacks and `low_confirmed` describe cached requested-state checks, not
+physical measurements; the independent waveform supplies final-low evidence.
+
+Both helpers finished without cleanup errors, in 2.664/2.772 seconds including
+setup and cleanup. Final-low tails were 0.579/0.527 s. Before/after temperatures
+were 49.05/48.50°C and 47.95/49.60°C; firmware limiting flags stayed zero.
+Postflight found GPIO18/23 low, no test exports or helper PIDs, unchanged fan
+provider/consumer/state and the same boot configuration hash. The runtime
+overlays remain loaded: GPIO18 stays PWM-muxed and GPIO23 kernel-reserved.
+Do not hot-remove/unbind/unload either provider on this tested kernel.
+
+The independent source/safety review found no remaining diagnostic blockers;
+the hardware evidence was also independently audited. All 384 combined
+GPIO-free lab tests passed, including 38 new helper, 13 orchestration and 51
+waveform cases. New-tool lint passed. Both saved analyses reproduce exactly
+with the frozen offline analyzer, which rejects injected 10/20-ns dips.
+The executed helper SHA256 is
+`545b0fd16aaee668040f757be0e49e6021492ff5d64e13a94d8166983164fdbf`;
+the common helper SHA256 remains
+`7cb4ea051e346b38b3276b92e5e0edcd9f24f4ed36f7d4f4eeffa4800f8e2111`.
+
+The focused experiment supports inverse-zero as a Pi 5 constant-high strategy.
+Next is an isolated wrapper with direct high/interior transitions, frequency
+changes, lifecycle/error behavior and broader workload/board coverage before
+considering adoption. The production backend and Blinka integration are
+unchanged. Both captures, exact sources/tests and pre/postflight evidence are
+preserved in
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-inverse-evaluation.tar.gz`.
+
+### Pi 5 direct/frequency/lifecycle transitions — strict rejections
+
+Three further GPIO18/channel 0 captures exercised direct constant-high/interior
+transitions, normal and high-state 50↔500 Hz changes, and closing from high then
+reopening the same channel. All ran at 100 MSa/s, unfiltered, on the same Pi 5
+kernel/bench. Logical duty 65535 used inversed-zero. Polarity/frequency changes
+first disabled PWM; frequency changes zeroed duty before changing period.
+The new diagnostic helper SHA256 is
+`9ba7b5ad0893fbc71d508e2f16a91e7f8b5808bc5d749c7c54210ed50186f7f4`.
+Its safe cleanup restores the known 20-ms period before inherited normal-low
+verification/release. Source review caught and fixed a signal-during-first-close
+path that could otherwise reopen generation 2; this was fixed and fake-tested
+before any capture. No production code was changed.
+
+All three traces remain **strictly rejected**, with `accepted=false` and every
+physical transition retained. They contain shortened outgoing ordinary pulses
+at update boundaries, not dips inside steady high holds. No trimming or predicate
+relaxation turns these results into passes.
+
+| Capture | Edges | Partial outgoing highs (µs) | Continuous high holds (ms) |
+| --- | --- | --- | --- |
+| `oct6-pi5-state-direct` | 532 | 1169.21, 429.62, 378.78 | 300.61866, 301.04738, 601.31797 |
+| `oct6-pi5-state-frequency` | 486 | 1125.23, 356.42 | 902.40499 |
+| `oct6-pi5-state-lifecycle` | 446 | 1213.00, 383.28 | 300.76394, 300.79547 |
+
+In direct/lifecycle captures, the partials immediately precede entry to high.
+The frequency capture's partials precede ordinary-frequency changes. Source
+ordering makes the enable-bit clear a plausible explanation for truncation;
+unaligned Pi/Saleae clocks do not establish syscall-correlated causation or
+latency. High→interior recovery produced full ordinary pulses. Complete 50-Hz
+groups have highs 1500.02–1500.03 µs and periods 20000.88–20000.89 µs;
+500-Hz groups have highs 1000.06–1000.07 µs and periods 2000.10–2000.11 µs.
+Retuning while high introduces no captured edge: the direct ~0.6-second and
+frequency ~0.9-second holds each stay continuous. No sub-microsecond low run
+was detected anywhere in these captures. These sub-findings do not override
+the whole-trace rejection.
+
+Lifecycle metadata records two distinct fresh export/unexport generations;
+the physical low interval between them is 613.04989 ms. Both generations closed
+from high and reported successful normal-low release. All helpers finished with
+no cleanup errors, firmware flags zero, and temperatures below 48°C. Recorded
+before/after temperatures are 47.40/47.95°C direct, 47.40/47.95°C frequency,
+and 46.85/47.40°C lifecycle. Postflight confirms both test pins low, no exports
+or recorded helper PIDs, and unchanged fan owner/state and boot configuration.
+The providers stay bound until reboot; GPIO18 remains PWM-muxed and GPIO23
+reserved. No PIO, kernel/boot/policy or production-backend changes occurred.
+
+The [CircuitPython frequency setter documentation](https://docs.circuitpython.org/en/latest/shared-bindings/pwmio/#pwmio.PWMOut.frequency)
+explicitly permits glitches during frequency adjustment. It does not explicitly
+promise a complete outgoing pulse for a duty update. The stricter experimental
+criterion is useful for characterizing quality, but these partials alone are
+**not an established CircuitPython API violation**.
+
+The exact kernel has no atomic userspace PWM state interface: it exposes scalar
+sysfs attributes, not PWM cdev/ioctl operations. Per the
+[RP1 datasheet, pages 36 and 39](https://datasheets.raspberrypi.com/rp1/rp1-peripherals.pdf),
+control/inversion/enable apply at a PWM-clock update, whereas duty/range latch
+at counter overflow. A single driver apply therefore does not inherently couple
+all those changes at a cycle boundary. A source-supported follow-up keeps PWM
+enabled, commands normal-zero, waits two periods for it to latch, and then
+inverts; period changes similarly occur at zero with explicit settling.
+That strategy intentionally adds delay and is not yet a production solution.
+
+All 481 combined GPIO-free cases passed (38 new state-helper, 28 capture and
+31 waveform cases), and new-tool lint passed. An independent raw/SAL/metadata
+audit confirmed the rejected analyses and measured sub-findings. Raw captures,
+exact sources/tests and pre/postflight are preserved separately in
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-state-evaluation.tar.gz`.
+
+### Pi 5 enabled, period-settled transitions — characterization
+
+The next three short GPIO18/channel 0 captures use the separate
+`enabled-period-settled-v1` laboratory wrapper, not a production change.
+Ordinary updates stay enabled: before entering inverse-zero high or changing
+a normal period, the wrapper commands raw zero and waits two current periods.
+Changed periods then settle for two maximum old/new periods before active duty
+or inversion. Returning from high first restores normal polarity at raw zero;
+high-state frequency changes retain inversed-zero throughout. The deliberate
+waits are 40 ms at 50 Hz and 4 ms at 500 Hz; they trade update responsiveness
+for finishing outgoing pulses. Cleanup still uses conservative disabled recovery.
+
+| Capture | Edges | Strict `accepted` | Continuous high holds (ms) | Final-low tail (s) |
+| --- | --- | --- | --- | --- |
+| `oct6-pi5-settled-direct` | 526 | `true` | 300.52804, 300.52867, 641.41899 | 0.749 |
+| `oct6-pi5-settled-frequency` | 484 | `false` | 982.23943 | 1.402 |
+| `oct6-pi5-settled-lifecycle` | 444 | `true` | 300.90001, 300.88680 | 0.661 |
+
+All captured ordinary highs, including outgoing and recovery pulses, remain
+complete: 50-Hz highs are 1500.02–1500.03 µs with within-group periods
+20000.88–20000.89 µs; 500-Hz highs are 1000.06–1000.07 µs with periods
+2000.10–2000.11 µs. None of these traces has an unexpected high-width run,
+a captured dip within a continuous high hold, or a sub-microsecond low run.
+The direct capture's adjacent high-frequency phases remain one continuous
+641.419-ms hold. Lifecycle closes both fresh generations from high, with a
+696.827-ms physical low separator before the second generation's ordinary PWM.
+
+**The frequency capture remains strictly rejected.** Its 982.239-ms continuous
+high exceeds the nominal three 300-ms holds, and its ordinary frequency-change
+rising-edge gaps are 84.00395 and 46.00209 ms, matching neither the configured
+20-ms nor 2-ms period. The explicit zero/period settling inserts quiet gaps and
+extends the high hold while retuning; it does not provide uninterrupted ordinary
+PWM across frequency changes. No boundary trimming, edge merging, predicate
+relaxation or reclassification converts this result into a pass. For example,
+the direct waveform has 40.335/42.197-ms low gaps before its two 50-Hz high
+holds and an 81.794-ms low gap during high-to-500-Hz recovery. Those are
+waveform separators, not aligned measurements of command-to-edge latency.
+Pi monotonic clocks remain unaligned with Saleae time, and the logged waits
+and cached sysfs readbacks do not independently prove physical settling.
+
+These are single captures with no deliberate CPU load on Pi 5 Model B Rev 1.0, kernel
+`6.12.75+rpt-rpi-2712`, using physical Logic 8/Logic 2.4.46 at 100 MSa/s.
+The saved `.sal` settings confirm channel 0 only and no glitch filter; every
+captured transition is retained. The nominal sample interval is 10 ns, the
+analyzer timebase is not independently calibrated, and this finite digital
+threshold evidence neither measures analog transients nor excludes shorter
+or non-threshold-crossing glitches. The scalar sysfs strategy is not an atomic
+PWM-state API, a latency guarantee, or a general backend-readiness result.
+
+All helpers reported cached normal-zero/20-ms final state, final disable and
+fresh-export release with no cleanup errors. Direct/frequency/lifecycle helper
+elapsed times were 3.676/3.219/2.610 s. Before/after temperatures were
+46.85/47.40°C, 47.40/47.95°C and 46.85/47.95°C; firmware limiting flags stayed
+zero. `low_confirmed` describes requested-state/readback checks and settling,
+while the independent captures supply the final-low observations above.
+Only header RP1 channel 2 was exported; GPIO23 and the fan were not driven by
+these helpers. The production backend, Blinka integration and frozen earlier
+diagnostic sources remain unchanged. Broader repeated/load/frequency coverage
+and a suitable update-latency contract remain necessary before adoption.
+
+One unchanged repeat of each sequence agreed with the first run. Direct-r2
+passed with 526 edges and continuous highs 300.53676, 300.55442 and
+641.35299 ms; frequency-r2 retained the same three strict timing rejections
+with 484 edges and one 982.212-ms high. Its boundary low gaps were
+82.50391/45.00202 ms. Lifecycle-r2 passed with 446 edges and highs
+300.58050/300.62418 ms; its second train contained 201 complete 500-Hz
+pulses rather than 200, within the frozen one-cycle allowance. No repeat had
+a partial high, captured high-hold dip or sub-microsecond low run. Temperatures
+across the repeats were 45.20–47.95°C with flags clear; all exports released.
+Pi-clock transition durations in the first set were approximately 40.6 ms
+for 50-Hz normal-to-high, 4.5–4.8 ms at 500 Hz, and 81.0–81.4 ms for a
+50-to-500-Hz active transition. These include userspace/sysfs work and
+deliberate waits, not synchronized electrical latency measurements.
+
+All six original traces and accepted/rejected analyses, exact diagnostic
+sources/tests, and pre/postflight records are preserved separately in
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-settled-evaluation.tar.gz`.
+The 253,487-byte archive has SHA256
+`cfb6c906f4e9672ab44e317867ba76f7776a2f0ecec6509fdcb090b4589414a9`;
+all 26 top-level targets were byte-compared after fresh extraction.
+
+### Pi 5 50-Hz half-duty transition follow-up
+
+Two separate `half50-direct-v1` captures add the wider outgoing-pulse case:
+low → 50 Hz/duty32768 for 0.4 s → inverse-zero high for 0.3 s →
+50 Hz/duty32768 for 0.4 s → low. They reuse the frozen enabled-settled
+transition and conservative cleanup; all periods remain 20 ms. The new
+analyzer adds only this distinct sequence and its approximately 10-ms pulse
+category. It retains every edge, the same ±2% complete-width/period checks,
+one-cycle pulse-count allowance, and high-dip/partial-pulse rejection rules.
+The earlier captures and their predicates are unchanged.
+
+`oct6-pi5-half50-direct` and `-r2` both passed with 82 edges: 20 complete
+outgoing pulses, one continuous high, and 20 complete recovery pulses.
+All 40 ordinary highs in each were 10000.59–10000.60 µs, with periods
+20000.88–20000.89 µs. High holds were 300.50486/300.52405 ms, with no
+captured dips or partial outgoing/recovery pulses. Physical outgoing-to-high
+low gaps were 31.83075/31.81675 ms; high-to-recovery gaps were
+17.67976/17.67458 ms. These are waveform intervals, not synchronized
+command-to-edge latency measurements. The single deliberate zero-settle
+wait was 40 ms in both, as independently verified from the audit.
+
+Both saved acquisitions used physical Logic8/channel0, 100 MSa/s, no glitch
+filter and no trimming, with a 0.5-s non-GPIO pre-helper observation lead
+and 0.2-s post-helper tail. All five exact source hashes matched. Final-low
+tails were 0.624/0.847 s. Helpers 4017/4065 reported final normal-zero/20-ms
+disable and fresh-export release with no errors; temperatures were
+47.40→48.50°C and 46.85→49.05°C, flags clear. The 34 new GPIO-free
+helper/capture/waveform tests and selected lint passed. This remains finite,
+uncalibrated digital characterization, not analog or backend-readiness proof.
+
+An initial externally launched CPU-only load attempt expired before the capture
+handoff; no PWM capture was started. Its successful load receipts are retained
+explicitly as setup/coordination evidence, not counted as loaded waveform data.
+
+The two unloaded half50 captures, all exact diagnostic dependencies/tests and
+pre/postflight records are preserved separately in
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-half50-evaluation.tar.gz`.
+The 102,901-byte archive has SHA256
+`e2033169ae3ae3d4187739de39cbd71ef8d686123afce69060a0314c56802425`;
+all 28 top-level targets were byte-compared after fresh extraction.
+
+### Pi 5 coordinated two-worker CPU-load follow-up
+
+Two short, separate `-loaded-r2` acquisitions exercise the unchanged settled
+direct and half50 sequences while two external CPU-only workers run for ten
+seconds. A local coordinator persists and validates the launch receipt before
+starting the existing capture helper; it then drains the load completion even
+if capture fails. Both actual acquisitions recorded load-helper, recorder and
+capture return codes of integer zero. Independent receipt audits confirm that
+both actual worker intervals bracket every phase and the entire GPIO helper,
+not merely that workers were launched. The initial standalone load attempt
+completed before capture started and remains **CPU-only failed-coordination
+evidence, not loaded PWM waveform data**.
+
+| Capture | Edges | Strict `accepted` | Continuous high holds (ms) | Final-low tail (s) |
+| --- | --- | --- | --- | --- |
+| `oct6-pi5-settled-direct-loaded-r2` | 526 | `true` | 300.54664, 300.55339, 641.35334 | 0.86774790 |
+| `oct6-pi5-half50-loaded-r2` | 82 | `true` | 300.58296 | 0.67626404 |
+
+Direct retains 20/20/200/20 complete ordinary pulse groups; half50 retains
+20 complete outgoing and 20 recovery pulses. Their measured ranges match the
+idle captures at the saved 10-ns resolution: servo50 highs 1500.02–1500.03 µs
+and periods 20000.88–20000.89 µs; half500 highs 1000.06–1000.07 µs and
+periods 2000.10–2000.11 µs; half50 highs 10000.59–10000.60 µs and periods
+20000.88–20000.89 µs. No partial ordinary pulse, unexpected high run,
+captured high-hold dip or sub-microsecond low run was found. The direct loaded
+holds compare with idle 300.52804/300.52867/641.41899 ms; half50 compares
+with idle 300.50486/300.52405 ms. These are two diagnostic load captures,
+not a statistical bound or proof of workload-independent timing.
+
+Deliberate settling gaps remain. The loaded direct boundary low intervals are
+40.31480/17.65448/42.10802/81.85767/4.58559/1.09248 ms, versus first idle
+40.33467/17.65325/42.19661/81.79384/4.65803/0.95445 ms. Loaded half50
+outgoing-to-high/high-to-recovery gaps are 31.80301/17.62940 ms, versus
+31.83075/17.67976 ms idle and 31.81675/17.67458 ms in its idle repeat.
+These waveform intervals are not synchronized command-to-edge latency.
+
+Actual direct workers 4144/4145 completed 41054/41064 iterations; half50
+workers 4182/4183 completed 42050/41034. Each ran approximately ten seconds
+and was reaped with return code zero. The direct helper was bracketed by
+approximately 1.016 s before and 5.311 s after; half50 by 1.441 s before and
+6.753 s after, for each worker. Receipt timing assumes the same Pi/boot
+monotonic clock and does not align that clock with Saleae. Two recorded CPU
+workers establish concurrent CPU work, not full four-core saturation or
+continuous execution of either worker.
+
+Both original strict analyses and overlap reports reproduce independently;
+raw binary/SAL checks confirm physical Logic8/channel0, 100 MSa/s and no
+glitch filter. Exact helper source hashes, coordinator
+`479eade31269ee00535112eb99fedf92bb47dc0cb1d57c40534de829410eed4b`
+and recorder
+`6f755cdb1d2a8dc4a2af72248ddda88740ab2a3ab123ac5a1afe82e52d06974d`
+match the retained sidecars and frozen sources. The CPU-only helper hash is
+`0644d9b0e0228bca813e7b3cbb909165e1c313d04baf2405c8f0f78badbc18ca`.
+Kernel remains `6.12.75+rpt-rpi-2712`. These finite, uncalibrated digital
+observations do not establish analog quality or exclude sub-sample glitches.
+
+Helpers 4155/4193 reported normal-zero/20-ms final cached state, disable and
+fresh-export release, with no cleanup errors. Before/after temperatures were
+51.80→52.90°C direct and 50.15→50.70°C half50; firmware flags were zero.
+Read-only loaded postflight found all recorded helper/launcher/worker PIDs
+absent, both test pins low and no test exports. The separate fan owner and
+boot configuration remained intact. Informational gRPC fork/poll stderr is
+retained, rather than described as empty. Only GPIO18/header RP1 channel2 was
+driven; providers stay bound until reboot, and production/Blinka are unchanged.
+
+The original loaded archive remains immutable:
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-loaded-evaluation.tar.gz`,
+151,928 bytes, SHA256
+`4e63afe5f416ad5a04ed79fa406960b2268a218886125f7c343f386bcbeb0b10`.
+Fresh extraction byte-matched all 51 top-level targets (63 regular files),
+including both actual captures, sidecars, original load-only receipts,
+pre/postflight and the exclusive pre-handshake recorder/test snapshots.
+
+### Pi 5 self-SIGTERM from inverse-zero high
+
+Two separate `sigterm-high-v1` diagnostic captures command low, then hold
+enabled inverse-zero high for 0.3 s before sending real `SIGTERM` once to the
+helper's own PID. The active safety guard raises the recorded
+`SafetyAbort: Stopped by SIGTERM`; inherited conservative cleanup verifies
+normal-zero low, disables and releases the fresh export. The dedicated helper
+exits zero only for `expected-sigterm-abort-cleaned` with independently passing
+post-abort checks. Both reports explicitly have `completed_normally=false` and
+`expected_abort_observed=true`: these are expected-abort diagnostic passes,
+not ordinary experiment completion.
+
+| Capture | Raw edges | Strict `accepted` | Initial low (s) | Continuous high (ms) | Final low (s) |
+| --- | --- | --- | --- | --- | --- |
+| `oct6-pi5-sigterm-high` | 2 | `true` | 2.50791225 | 300.65130 | 1.80386013 |
+| `oct6-pi5-sigterm-high-r2` | 2 | `true` | 2.91475851 | 300.96428 | 1.73093449 |
+
+Each unfiltered trace contains exactly one rising and one falling edge, with
+no captured high dip or later reassertion. Acquisition receipts retain helper
+return code zero, no primary/evidence errors, a 0.5-s observation lead and
+1.2-s post-helper tail. Original analyses reproduce independently from raw
+binary and physical Logic8/channel0 SAL settings at 100 MSa/s. Pi clocks are
+not synchronized with Saleae; the high width is not a signal-to-low latency
+bound. Finite sampled threshold evidence is not analog proof or exclusion of
+shorter/non-threshold-crossing transients, and this deliberate self-signal case
+does not cover arbitrary interruption timing or every possible failure.
+
+PIDs 4281/4309 targeted themselves with signal15 under a nondeferred active
+guard. Both fresh channel2 exports were absent after cleanup; final cached
+readbacks were normal polarity, duty0, period20 ms and disabled, with no
+cleanup errors. Independent before/after-cleanup temperatures were
+47.40→47.40°C and 47.95→46.85°C, flags zero. The dedicated exit0 postflight
+found both PIDs absent, no test exports, GPIO18/23 low, unchanged boot SHA and
+only the separate fan consumer owned, at 48.3°C/flags zero. Its first combined
+`pinctrl get 18 23` read-only query failed syntax; the retained receipt records
+the completed separate-query retry. Runtime providers remain bound until
+reboot; unexport is not pinmux restoration.
+
+All five executed source hashes match frozen files. The SIGTERM helper is
+`2db935b3e86c75f12354fc5cfbe2fbeb8fdc016b62dcc93776eff69fafaa7279`.
+A new exclusive recovery archive preserves only these two captures, exact
+helper/capture/analyzer dependencies and tests, and the dedicated postflight;
+per-run remote before-snapshots supply the available actual preflight evidence.
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-sigterm-evaluation.tar.gz`
+is 102,400 bytes, SHA256
+`4368db377b5349942f156e566bd012d0e4c3151067da4960edefb9bb71905f87`.
+All 26 top-level targets (38 regular files) byte-match a fresh extraction.
+No guarded files or earlier captures were added to this archive.
+
+These loaded and signal tests are strict passes for narrowly defined diagnostic
+protocols. **Baseline parity and production-backend readiness are not yet
+established.** Earlier frequency-transition rejections remain unchanged;
+broader lifecycle, interruption, load, frequency and update-latency coverage is
+still required before adoption. No production code or Blinka integration changed.
+
+### Pi 5 single-period plus 1-ms guard characterization
+
+The separate `enabled-single-period-guard-v1` wrapper changes only the earlier
+two-period transition waits to one applicable nominal requested period plus
+1 ms: 21 ms at 50 Hz and 3 ms at 500 Hz. A changed period waits
+`max(old,new nominal period)+1 ms`; the preceding normal-zero wait remains
+separate. Thus normal 50→500-Hz changes request 42 ms total settling and
+500→50-Hz changes request 24 ms, instead of 80/44 ms. All actual scalar
+writes, readbacks, fresh ownership and conservative disabled cleanup remain
+the frozen settled implementation. The guard is a characterization choice,
+not a latch acknowledgment, physical-settling or production-latency guarantee.
+
+Eight unloaded acquisitions repeat the same four fixed shapes without
+changing any original physical predicate. Every raw edge remains evidence.
+
+| Guarded profile (`oct6-pi5-guarded-` prefix) | Strict first / `-r2` | Edges first / `-r2` | First continuous highs (ms) | Repeat continuous highs (ms) |
+| --- | --- | --- | --- | --- |
+| `direct` | `true` / `true` | 526 / 526 | 300.93630, 300.55666, 622.40221 | 300.92927, 300.54101, 622.37977 |
+| `frequency` | `false` / `false` | 484 / 484 | 944.17310 | 944.13325 |
+| `lifecycle` | `true` / `true` | 446 / 446 | 301.02423, 300.58574 | 300.98645, 300.55714 |
+| `half50-direct` | `true` / `true` | 82 / 82 | 300.96886 | 300.96489 |
+
+All outgoing and recovery ordinary pulses are complete, with no unexpected
+high, captured high-hold dip or sub-microsecond low run. Width/within-group
+period ranges remain servo50 1500.02–1500.03/20000.88–20000.89 µs,
+half500 1000.06–1000.07/2000.10–2000.11 µs and half50
+10000.59–10000.60/20000.88–20000.89 µs. Both lifecycle runs contain 201
+complete 500-Hz pulses, within the unchanged one-cycle allowance, and two
+fresh export/unexport generations. Their physical low separators are
+655.59297/655.74758 ms. Final-low tails across the eight traces are
+0.79306415–2.06207257 s.
+
+**Both frequency traces remain strictly rejected**, now for exactly the two
+ordinary frequency-change quiet gaps. Boundary rising-edge intervals are
+46.00210/26.00121 ms first and 46.00210/26.00120 ms repeat, neither a
+complete configured 20-ms nor 2-ms period. Their approximately 944-ms high
+holds now satisfy the unchanged nominal 0.9 s ±0.05 s window; removing that
+prior high-width rejection does not remove the two gap rejections. These
+strict uninterrupted-pulse diagnostic rejections are not, by themselves, an
+established baseline-parity failure or CircuitPython API violation. Conversely,
+the other diagnostic passes are not proof of baseline parity or readiness.
+
+The shorter waits reduce observed **Pi-side transition command/readback
+durations**, measured from phase `begin_ns` to `stable_begin_ns`. Across the
+two unloaded repetitions per shape:
+
+| Transition | Earlier two-period strategy (ms) | Guarded strategy (ms) |
+| --- | --- | --- |
+| Normal 50 Hz → high | 40.553–40.844 | 21.528–21.608 |
+| Normal 500 Hz → high | 4.540–4.823 | 3.542–3.558 |
+| Active 50 → 500 Hz | 80.906–81.371 | 42.912–43.449 |
+| Active 500 → 50 Hz | 45.316–45.322 | 24.920–24.930 |
+| Inversed-zero frequency change | 40.620–40.673 | 21.617–21.664 |
+
+These include deliberately requested waits and userspace/sysfs work, not
+synchronized electrical latency. For example, guarded half50 outgoing-to-high
+low gaps are 12.83989/12.97866 ms, versus earlier 31.83075/31.81675 ms;
+high-to-recovery gaps remain 16.20574/16.07096 ms. A faster cached readback
+does not confirm the physical latch or establish a maximum signal response time.
+
+Two additional short coordinated load acquisitions use two independently
+expiring ten-second CPU-only workers:
+
+| Capture | Strict `accepted` | Edges | Continuous highs (ms) | Final-low tail (s) |
+| --- | --- | --- | --- | --- |
+| `oct6-pi5-guarded-direct-loaded-r2` | `true` | 526 | 300.91965, 300.59209, 622.43044 | 2.36100436 |
+| `oct6-pi5-guarded-half50-loaded-r2` | `true` | 82 | 300.92641 | 0.64980927 |
+
+Both retain the complete ordinary pulse topology and ranges above, with no
+captured high dips or partial pulses. Base coordination and separate guarded
+wrapper receipts validate the exact pinned sources and actual integer-zero
+load-helper, recorder and capture exit codes; no errors were recorded.
+Workers 4710/4711 completed 41061/42030 iterations, and workers 4748/4749
+completed 42035/41974, each in approximately ten seconds and reaped with
+return code zero. Every phase and the entire GPIO helper are bracketed by
+each actual worker interval. Minimum whole-helper start/end margins are
+3.562648/2.857547 s direct and 1.983659/6.230897 s half50. Original PWM
+and overlap analyses reproduce independently, including a separate raw/SAL
+audit. Despite the fresh `-loaded-r2` names, there is only **one actual guarded
+loaded capture per profile**, not repeated or saturated-load coverage. Two
+recorded workers demonstrate concurrent CPU work, not full four-core saturation;
+receipt timing assumes the same Pi/boot monotonic clock.
+
+All ten acquisitions retain physical Logic8/channel0, unfiltered 100 MSa/s,
+0.5-s lead/0.2-s tail and every raw edge on kernel
+`6.12.75+rpt-rpi-2712`. The nominal 10-ns resolution is uncalibrated finite
+digital-threshold evidence, not analog quality or exclusion of sub-sample
+transients. Pi timestamps remain unaligned with Saleae. Only GPIO18/header
+RP1 channel2 was driven; GPIO23 and the separate fan were not targeted.
+Every helper reported normal-zero/20-ms cached cleanup, final disable and
+fresh-export release without errors. Idle temperatures were 47.40–49.60°C;
+loaded endpoints were 51.80→53.45°C direct and 50.15→50.70°C half50,
+with firmware flags zero. Final exit0 postflight found all sixteen recorded
+helper/launcher/worker PIDs absent, both pins low, no test exports, only the
+separate fan owned, unchanged boot SHA and 45.5°C/flags zero. Providers remain
+bound until reboot; unexport does not restore pinmux.
+
+Executed guarded helper SHA256:
+`142f0afcc8786252ade1a461386715d0d5dbb2f8394c26dcbb40eb34ab635b0b`.
+The loaded wrapper SHA256 is
+`12278b86ee92c6d5c2f2af9e3d9f3017b0b3e44fb12e7aea6595d94a81e45226`.
+All five reported helper hashes and retained coordinator/recorder/capture
+hashes match exact frozen sources. The preflight records 87 selected
+hardware-free guarded/regression tests; the new loaded wrapper had 23 fake
+cases, 56 with original coordinator regressions, and selected lint passed.
+
+A new exclusive recovery checkpoint preserves all ten complete captures,
+35 exact dependency/test files, twelve outside loaded sidecars and three
+inspection receipts. The prior SIGTERM postflight is included only as the
+initial inspection explicitly referenced by guarded preflight; no earlier
+capture or archive is rewritten.
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-guarded-evaluation.tar.gz`
+is 389,120 bytes, SHA256
+`b76925bff876bde8d9232cd40d2d72358cc13327ebb51d394883cc82a2895f4d`.
+Fresh extraction byte-matched all 60 top-level targets (122 regular files).
+Baseline parity remains unestablished, and production/Blinka are unchanged.
+
+### Pi 5 original-lgpio reference after a clean boot
+
+Six separate acquisitions run the byte-identical original Blinka `PWMOut`
+and `lgpio_pin` files from commit
+`beb49bf8ea9305dacbd14b08525f234eda563c02`, using distro
+`lgpio.py_0.2.2.0` under `/usr/bin/python3`. A controlled reboot removed the
+runtime test providers without hot-unbinding them; kernel
+`6.12.75+rpt-rpi-2712` and boot-configuration SHA stayed unchanged.
+GPIO18 was freshly claimed on the discovered RP1 `/dev/gpiochip0`; GPIO23
+and the separate fan were not targeted. This is an unloaded, before-versus-after
+clean-boot comparison, not a same-boot, calibrated or load-controlled benchmark.
+
+The first capture's authoritative report is
+`oct6-pi5-lgpio-baseline-direct/analysis-rounding-corrected.json`.
+Its original `analysis.json` and the exclusive analyzer/test
+`*_rounding_v1.py` snapshots remain unchanged: they incorrectly treated 4915
+as 8%, with a 1600-µs nominal width. The original formula actually gives
+`100*4915/65535 = 7.499809262226291`, which rounds to **7% and 1400 µs**
+at 50 Hz. This is different from the kernel diagnostic's approximately
+1500.02-µs pulse for the same logical duty. Later five reports use the corrected
+formula. All six authoritative reports exactly reproduce offline from the
+original SAL, every binary edge, acquisition and source/ownership receipts.
+
+The following counts are descriptive width bins, not acceptance thresholds.
+Ordinary-bin counts are 50-Hz/7%, 500-Hz/50%, then 50-Hz/50%; a ±2% bin does
+not discard the separately counted unmatched high runs. All captures have
+`collection_success=true`, but `waveform_accepted=null` and `parity_pass=null`.
+
+| Original-lgpio profile (`oct6-pi5-lgpio-baseline-` prefix) | Edges | Ordinary-bin counts | Unmatched highs | Continuous highs (ms) |
+| --- | --- | --- | --- | --- |
+| `direct` | 516 | 56 / 193 / 0 | 6 | 301.29867, 300.89860, 601.21023 |
+| `direct-r2` | 512 | 51 / 194 / 0 | 8 | 301.88139, 301.47738, 602.29147 |
+| `frequency` | 482 | 39 / 197 / 0 | 4 | 901.22782 |
+| `frequency-r2` | 464 | 40 / 186 / 0 | 5 | 901.09150 |
+| `half50-direct` | 80 | 0 / 0 / 39 | 0 | 310.34298 |
+| `half50-direct-r2` | 80 | 0 / 0 / 39 | 0 | 310.32369 |
+
+The 23 unmatched highs remain in the reports and raw recordings: two
+500-Hz-region widths are 1022.25–1024.51 µs, eleven are
+1037.73–1047.77 µs, and ten 50-Hz-region widths are 1428.19–1447.03 µs.
+The bins do not establish which command caused an individual anomaly.
+Each half50 run contains 20 outgoing and 19 recovery pulses, rather than
+the guarded diagnostic's 20/20. Their high ranges are
+9999.17–10049.14 and 9999.40–10015.80 µs. No transition trimming or glitch
+filtering is applied, and no sub-microsecond interior low run is recorded.
+Final-low tails are 0.68775598–1.29092036 s. These counts and width variations
+must not be replaced by only steady-state or matched-bin statistics.
+
+Original setter events take 5.891–25.153 µs, including instrumentation and
+logging, with no additional settling waits. Matched logical-phase
+`begin_ns`→`stable_begin_ns` durations expose the guarded strategy's deliberate
+caller-response tradeoff:
+
+| Matched phase | Original-lgpio first / repeat (µs) | Guarded first / repeat (µs) |
+| --- | --- | --- |
+| `direct.high50_first` | 19.229 / 24.259 | 21598.551 / 21596.418 |
+| `direct.high500` | 21.988 / 20.340 | 3551.678 / 3542.048 |
+| `frequency.pwm500_d32768` | 36.524 / 25.487 | 43449.285 / 43368.817 |
+| `frequency.pwm50_d4915_recovery` | 25.002 / 25.931 | 24919.893 / 24930.261 |
+| `direct.high50_after_frequency` | 11.670 / 16.957 | 21664.070 / 21634.641 |
+
+Both protocols reach matching logical phase targets, but the kernel helper
+combines frequency and duty changes; the original invokes the frequency setter
+and then the duty setter when each changes. This is not the same public-API
+implementation or a synchronized command experiment. Pi clocks are not aligned
+to Saleae, and these caller durations do not measure command-to-edge latency.
+If adopted, the guarded waits would block callers materially longer; that is a
+prototype responsiveness regression/tradeoff, not a change to production code.
+The strategy has **not been shown on-par** with the original. The smallest next
+comparison is the actual native draft API using the same setter order, before
+expanding the kernel prototype or claiming a default migration.
+
+Physical Logic8/channel0 SAL settings confirm unfiltered 100 MSa/s, with a
+0.5-s lead and 0.2-s tail and actual helper/collection exit0. The 10-ns nominal
+sample interval is uncalibrated finite threshold evidence, not analog proof,
+sub-sample-glitch exclusion or a latency guarantee. API frequency/duty/enabled
+readbacks are software state, not electrical measurements. The bench separately
+adds PWM cancellation, low drive, 100-ms settling, GPIO read0/`tx_busy`0,
+free/release and private chip close; these safety steps are **not the original
+deinit behavior**. All six fresh claims released without errors or signals.
+Per-run temperatures were 47.40–50.15°C with flags zero; no load workers ran.
+The 14-s normal-execution watchdog excludes cleanup and does not protect against
+SIGKILL or a native-library hang.
+
+The completed exit0 postflight found PIDs 1920/1954/1972/1990/2008/2026 absent,
+GPIO18 released but still output-low, GPIO23 unclaimed input, only the separate
+fan PWM provider owned, unchanged boot SHA and 47.7°C/flags zero. Its earlier
+read-only fan-consumer query exited1 and is retained with the corrected retry.
+Release does not restore input pinmux. The preflight also retains the initial
+helper's missing legacy-label failure before any lgpio import/claim and its
+corrected, source-pinned read-only preflight.
+
+Executed helper SHA256:
+`8018a1766c711a9babe8d98c4f1f77412f23876c4e7fdc96bd012caaf3808b2f`.
+Corrected analyzer SHA256:
+`f099d76048b018bd976515fd1e65fd86563cfd5b619f50553815d74085918995`.
+All four executed source hashes match the exact retained files; 82 current
+hardware-free helper/collector/analyzer cases and scoped lint passed.
+The new exclusive checkpoint
+`hardware-evaluation/2026-10-06/kernel-pwm-pi5-lgpio-baseline-evaluation.tar.gz`
+is 225,280 bytes, SHA256
+`3e57dc44227a3046e0dbc2ce412326a726db5cb26bedd10d7fc13f0d36f895ab`.
+Fresh extraction byte-matched all 22 explicit top-level targets (59 regular
+files): six captures, exact dependencies/tests, the prior preflight helper,
+prior rounding analyzer/test and pre/postflight. The 14-MB full runtime backup
+remains separately preserved locally/remotely and is not duplicated here.
+Earlier diagnostics, rejections and archives remain unchanged. **Baseline
+parity/default-backend readiness are unestablished; production is unchanged.**

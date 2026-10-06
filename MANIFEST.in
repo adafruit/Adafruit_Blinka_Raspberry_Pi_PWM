@@ -1,4 +1,5 @@
 include LICENSE README.md CONTRIBUTING.md .pre-commit-config.yaml .readthedocs.yaml
+include tools/native_trace.c tools/build_trace.py tools/README.md
 recursive-include src/native *.c *.h
 recursive-include tests *.c *.py
 recursive-include examples *.py

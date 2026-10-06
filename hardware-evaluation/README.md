@@ -1,5 +1,45 @@
 # Hardware evaluation recovery snapshot
 
+The incremental October 6 diagnostics are in `2026-10-06/diagnostics.tar.gz`
+`2026-10-06/kernel-diagnostics.tar.gz`, and
+`2026-10-06/kernel-pwm-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi4-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-inverse-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-state-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-settled-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-half50-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-loaded-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-sigterm-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-guarded-evaluation.tar.gz`, and
+`2026-10-06/kernel-pwm-pi5-lgpio-baseline-evaluation.tar.gz`; see that directory's README
+for provenance, raw captures, and interpretation. Extract each incremental
+archive into a separate empty directory to preserve each script version.
+
+The loaded checkpoint preserves two accepted, narrowly scoped diagnostic
+waveforms with independently verified two-worker overlap and actual exit0
+coordination, plus an earlier load-only failed handoff that is **not waveform
+data**. The SIGTERM checkpoint separately preserves two accepted expected-abort
+diagnostics, not ordinary helper completion. Original predicates, earlier
+rejections and archives remain unchanged. Neither checkpoint establishes
+baseline parity, analog/latency guarantees or production-backend readiness;
+no guarded files are included in these earlier recovery archives.
+
+The separate guarded checkpoint preserves eight original idle outcomes
+(direct/lifecycle/half50 pass twice; frequency stays rejected twice for quiet
+gaps) and two short, accepted two-worker loaded captures. It changes only the
+experimental wait policy, retains every edge and original waveform rule, and
+does not establish aligned electrical latency, baseline parity or readiness.
+Earlier checkpoints remain immutable.
+
+The original-lgpio checkpoint separately preserves six clean-boot reference
+captures, all raw edges and anomalies, corrected integer-percent rounding,
+the first erroneous report and exact source snapshots. Collection success is
+not a pulse/parity verdict. The guarded prototype's deliberate waits would
+block callers longer than the original setters; differing setter paths and
+unaligned clocks prevent an electrical-latency or on-par claim. Production
+remains unchanged; compare the actual native draft API with matching setter
+order before considering migration.
+
 `2026-10-01/measurements.tar.gz` preserves the local `pwm-measurements` workspace
 at the October 1, 2026 checkpoint, excluding generated Python bytecode caches.
 It includes the capture/analysis scripts, recording-only harness tests, timing

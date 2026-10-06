@@ -2,6 +2,23 @@
 
 No current Blinka backend should change until these gates are satisfied.
 
+## Acceptance target
+
+The migration target is performance on par with the existing Blinka backends
+in the supported configurations, not perfect PWM or a hard realtime guarantee.
+Use RPi.GPIO on earlier Pis and lgpio on Pi 5 as the measured references.
+Compare actual frequency, pulse widths, late or omitted cycles, update response,
+and resource use together under matched conditions and repeated captures.
+Baseline imperfections do not excuse a material regression in the replacement.
+
+Stricter waveform criteria, such as uninterrupted frequency changes or complete
+outgoing pulses during every update, remain useful diagnostic targets. A failure
+of such a criterion is not by itself a failure of baseline parity or the
+CircuitPython API contract. Define baseline-derived acceptance thresholds before
+new comparison runs; retain the original criteria and pass/fail results for
+archived experiments. This clarification does not establish parity by itself or
+relax behavioral compatibility, GPIO ownership, or cleanup requirements.
+
 ## Behavioral compatibility
 
 Exercise defaults, duty 0/1/32767/65534/65535, fixed and variable frequency,
@@ -48,6 +65,12 @@ release time. Include 1/2/4/8 concurrent outputs, uneven frequencies, duty
 endpoints, tiny nonzero pulses, Python busy loops, I/O load, and CPU contention.
 Set quantitative pass thresholds from existing backend measurements; do not
 infer timing performance merely from accepting a frequency argument.
+
+Separate setter return time from electrical application time. Use the same
+public-API setter order in each comparison; combined diagnostic transitions
+are not identical to sequential frequency and duty updates. Explicit settling
+waits in a kernel prototype do not establish the native package's responsiveness,
+and a quick queued update is not proof of immediate electrical application.
 
 The default engine uses a native thread per output and GPIO ioctl per edge.
 The experimental `BLINKA_PWM_SHARED=1` engine shares a worker between outputs
