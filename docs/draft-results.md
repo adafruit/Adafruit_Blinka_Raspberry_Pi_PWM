@@ -2221,3 +2221,81 @@ It includes exact executed helpers, source manifests, pre/postflight receipts,
 raw channels/SALs, tests, independent audit and preserved native binary/source
 provenance. Selected third-party hashes are not complete third-party build
 provenance. Earlier archives remain unchanged.
+
+### Native consumer-library idle check
+
+Two native-only, passive-probe recordings use genuine
+`adafruit-circuitpython-motor` 3.5.0 `Servo` and `DCMotor` classes with unwrapped
+public native `PWMOut` objects. A temporary in-memory `pwmio` export provides
+the consumer import; it is restored afterward. This is not an installed
+Blinka/`pwmio` integration test, and no actual servo, motor or driver is attached.
+Both native scheduler options remain off; production and Blinka are unchanged.
+
+The pre-capture plan SHA256 is
+`97bb31a21eee3d2ed33241a5a8ebd92f5b10f56a5081cfad4f7fdb6227eaf0d2`.
+Fifteen phases have 3.45 seconds of dwell plus three 0.1-second cleanup settles.
+GPIO18 first uses a fresh 50-Hz Servo for angles 0/90/180/None, then releases.
+Fresh GPIO18/23 outputs form a 1000-Hz DCMotor for throttles
+0/+0.5/+1/−0.5/−1/None. Zero intentionally requests both-high brake, not coast.
+Actual Servo duties 3276/4914/6553 have native C-rounded highs
+999.771/1499.657/1999.847 µs; motor-half duty32767 has high 499.992 µs.
+These quantized targets, not ideal 1000/1500/2000-µs widths, normalize errors.
+
+Both helpers/collectors exit 0; all 41 caller events, ten consumer actions and
+15 phase API start/end readbacks succeed. The requested 90-degree getter is
+89.97253585596583 because of duty quantization, not an electrical angle reading.
+Receipts identify Servo GPIO18 generation 1, motor GPIO18 generation 2 and motor
+GPIO23 generation 1, independent owned-low/read/release, and unchanged live sibling
+identity. FD 4 is reused only after Servo release; concurrent motor FDs 4/6 are distinct.
+Receipt identity is not an electrical generation label or aligned phase clock.
+
+Each capture retains 826 GPIO18 edges/413 complete highs/412 adjacent-rise
+intervals and 706 GPIO23 edges/353 highs/352 intervals, including every boundary,
+low and anomaly. No sampled sub-µs high or interior low is found. Frozen identity
+rules use ±10% width and period bands, at least five pulses, long highs >100 ms,
+joint brake overlap at least 100 ms, unique order and sibling-low throughout the
+whole isolated run. No central-window substitute, trimming or widened band is used.
+
+Both recordings have uniquely ordered Servo-width trains of 21/20/20 pulses,
+then joint both-high brake, a GPIO18-only 350-pulse motor-half train and full
+high, then a GPIO23-only 351-pulse half train and full high. Joint brake overlaps
+are 200.14258/200.14363 ms; isolated full highs are 199.34233/199.36737 ms on GPIO18
+and 199.27366/199.27396 ms on GPIO23. Both satisfy the frozen strict topology identity
+rules without an ambiguity entry; that is identification, not timing acceptance
+or proof of complete command-phase extents. Silent final lows do not identify
+the exact disable, deinit or release calls.
+
+Repeat1 retains a 1972.77-µs Servo180 high (−27.077 µs) and a 473.90-µs forward-half
+high (−26.092 µs); their adjoining intervals remain present. Forward-half periods
+span 973.74–1026.82 µs in r1 and 997.48–1002.34 µs in r2. Better r2 extrema do not
+erase the r1 observations. In both raw records, the first GPIO23 reverse-half
+rise follows the GPIO18 full-high fall by 150 ns (15 nominal samples). That
+sampled separation has uncalibrated GPIO-driver/threshold/timebase skew: it is
+not calibrated deadtime, a shoot-through-safety result or a latency guarantee.
+Pi/Saleae clocks remain unaligned; caller returns are not electrical adoption.
+
+Independent raw/SAL reconstruction agrees on the finite physical topology and
+interval counts; offline re-export of both saved SALs gives four byte-identical
+raw channels. All 87 helper/collector/analyzer hardware-free cases and scoped
+lint/format checks pass, verified again before archiving.
+The later `oct7-native-consumers-final-report-audit.json` also confirms the frozen
+final reports against the independent reconstruction; the earlier audit remains
+historically unchanged. The read-only postflight at 21:00:14 UTC confirms all
+92 recorded PIDs absent, both pins unclaimed/output-low, unchanged
+boot/configuration and fan provider, 48.5°C and firmware flags 0. Normal watchdogs
+still cannot bound native hangs, SIGKILL or faults.
+
+Recovery archive
+`hardware-evaluation/2026-10-07/native-pi5-consumer-evaluation.tar.gz`:
+542,853 bytes, SHA256
+`79beb6afcf66c05c2bdb2dd76728760f252b44bb6535f5f3c29b1834baa02231`.
+Fresh safe extraction byte-matches all 44 explicit top-level targets / 65 regular
+files; offline replay reproduces both reports' JSON data exactly. The checkpoint
+preserves both SAL/raw recordings, receipts, the frozen plan/manifests, exact
+helper/collector/analyzer sources and fake tests, independent
+audits, pre/postflight and native binary/source provenance. Three exact genuine
+motor Python files are included under `consumer-library-source/adafruit_motor`;
+selected-source provenance is not complete third-party build attestation.
+See the dated recovery README for offline replay. This native-only functional check does not establish
+matched performance parity, default-backend readiness, general consumer/actuator
+compatibility or an analog failsafe. Earlier evidence remains unchanged.

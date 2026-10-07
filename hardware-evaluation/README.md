@@ -23,6 +23,14 @@ GPIO18/23 functional recordings with independent release/restart and sibling
 continuity. The retained wide pulse and partial-swap ambiguity are not hidden;
 this is not a matched performance-parity checkpoint.
 
+`2026-10-07/native-pi5-consumer-evaluation.tar.gz` adds two native-only idle
+passive-probe recordings using genuine motor 3.5.0 Servo/DCMotor classes through
+a temporary virtual `pwmio` export. Frozen ordered, whole-run sibling-low
+association preserves every edge and the r1 −27.077/−26.092-µs pulse errors.
+This does not prove installed Blinka, actual actuator operation, calibrated
+deadtime, electrical latency or performance parity. Recovery details are in
+the dated README; production remains unchanged.
+
 The October 7 default-native 50-Hz update comparison is preserved separately in
 `2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
 It includes two new native captures, the two unchanged original-lgpio

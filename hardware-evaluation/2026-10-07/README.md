@@ -125,6 +125,50 @@ python analyze_native_pwm_dual.py oct7-pi5-native-dual-lifecycle-r1 oct7-pi5-nat
 Do not rerun checkpoint creators against existing archives. Hardware helpers
 drive both confirmed pins and require fresh source/bench/ownership checks.
 
+## Native consumer-library checkpoint
+
+`native-pi5-consumer-evaluation.tar.gz` preserves two native-only idle GPIO18/23
+passive-probe recordings using genuine motor 3.5.0 Servo/DCMotor classes and
+unwrapped native public PWMOut objects. The temporary in-memory `pwmio` export
+does not establish installed Blinka compatibility; no actual actuator is attached.
+Archive: 542,853 bytes; SHA256
+`79beb6afcf66c05c2bdb2dd76728760f252b44bb6535f5f3c29b1834baa02231`.
+Fresh safe extraction byte-matches all 44 explicit top-level targets / 65 regular
+files; offline replay reproduces both final reports' JSON data exactly.
+
+The frozen 15-phase sequence uses Servo angles 0/90/180/None on GPIO18 at 50 Hz,
+releases it, then fresh motor GPIO18/23 at 1000 Hz for throttles
+0/+0.5/+1/−0.5/−1/None. Zero means both-high
+brake. Actual u16/C-rounded targets, strict unique ordered topology and whole-run
+sibling-low checks are preserved, with no post-capture central guard or band
+adjustment. Both collections exit 0 and retain all 826 GPIO18 / 706 GPIO23 edges each.
+The r1 −27.077-µs Servo180 and −26.092-µs motor-half errors are not discarded.
+The sampled 150-ns cross-channel separation is uncalibrated, not deadtime or an
+actuator-safety result. Neither clocks nor consumer calls align to the waveform.
+
+Included evidence covers SAL/raw exports, acquisition/remote receipts, exact
+executed helpers/collectors/analyzer and dependencies, fake tests, frozen plan
+and 18-source manifests, independent audits, pre/postflight and native binary/source
+provenance. Three exact genuine motor Python sources are included under
+`consumer-library-source/adafruit_motor`. The final-report audit confirms the
+frozen reports against the independent reconstruction; historical audits stay
+unchanged. All 87 hardware-free cases and scoped lint/format checks pass, verified
+again before archiving. This is finite native-only functional evidence, not matched performance parity,
+electrical application latency, analog failsafe or production readiness.
+
+Extract into a separate empty directory. Offline replay with matching dependencies
+and Saleae's Python package installed uses exclusive new outputs:
+
+```console
+python analyze_native_pwm_consumers.py oct7-pi5-native-consumers-r1 oct7-pi5-native-consumers-r2 --output-name replay.json
+```
+
+The ARM64 extension is provenance, not a macOS runtime. Selected third-party
+hashes are not complete build attestation. Do not rerun checkpoint creators
+against existing archives or execute hardware helpers without fresh
+bench/source/ownership checks. Production, Blinka and earlier archives remain
+unchanged; passive probes do not qualify a motor driver or physical actuator.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
