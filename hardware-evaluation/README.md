@@ -124,6 +124,17 @@ waveform and four workload-overlap reports. These finite functional results are
 not overall parity or installed Blinka/actuator qualification; see the dated
 README for the archive and replay details.
 
+The installed Blinka Pi 5 checkpoint separately adds two real installed
+`board`/`pwmio` Servo/DCMotor recordings, rather than the temporary export used
+above. It preserves the private test-only dispatch build, exact ARM64/runtime
+wheels and logs, source inventory, failed/corrected import probes and complete
+raw/cleanup/state/audit evidence. One recording retains a 308.860-µs reverse
+pulse against a 499.992-µs target and withholds complete waveform topology;
+integration success is not a timing/parity verdict. Safe byte-checked extraction
+reproduces both report JSON objects exactly. See the dated README and
+`docs/draft-results.md`; production/default dispatch and earlier archives remain
+unchanged.
+
 Snapshot SHA256:
 `d052d0bbed06d6c0361cbb39b043814ef5c5fa4e633a698244c3487544a26ab0`.
 The archive is approximately 77 MB and is explicitly excluded from source

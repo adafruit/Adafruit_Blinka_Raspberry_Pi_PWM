@@ -2540,3 +2540,114 @@ SAL/raw channels, load/stdout/stderr/coordination, state chain, independent
 audits and ten independent method/check files are preserved. Earlier archives
 and production source remain unchanged; this is paired functional-under-load
 evidence, not overall quantitative parity or migration readiness.
+
+### Real installed Blinka consumer integration on Pi 5
+
+Two idle passive-probe recordings now exercise installed `board` and `pwmio`,
+genuine `board.D18`/`board.D23` Pin objects and motor 3.5.0 Servo/DCMotor,
+without a virtual `pwmio` module. This closes that narrow integration gap, not
+the timing/parity or general-library validation gates. The private Python
+3.13.5 environment uses a test-only Blinka wheel
+`9.0.5.dev74+pwmeval.beb49bf`, from source commit
+`beb49bf8ea9305dacbd14b08525f234eda563c02`, with only the existing integration
+patch changing `src/pwmio.py` among the original source files. It is not a
+published Blinka version or a production/default-backend switch.
+
+The PWM wheel is freshly built on ARM64 from `0e1c7cd`; production source is
+byte-unchanged from `d5debaf`. Its extension SHA256 is
+`86e3c5f580c0c2599f29e12c0846189543726a73544cbe93a84a7b45cbb8b214`,
+not the earlier build's binary hash. The exact 23 runtime wheels, seven selected
+distribution versions and 72 selected helper/runtime source hashes are retained.
+Selected installed distribution files byte-match their wheel members; this is
+not whole-system attestation. The patched source tar retains 646 extra
+AppleDouble metadata files (501 original versus 1,147 patched regular files);
+the built Blinka wheel has 417 entries and no AppleDouble files. Archive file
+sets are therefore not described as identical.
+
+The first guarded import-only probe failed because the harness expected
+`RASPBERRY_PI_5B`/`BCM2712`. PlatformDetect 3.89.1 actually reports
+`RASPBERRY_PI_5`/`BCM2XXX`, with both Raspberry Pi predicates true. Correcting
+those two harness expectations makes the probe pass; both outcomes and the
+pre-correction helper are preserved. Neither probe requests or writes GPIOs.
+The installed Pi 5 NeoPixel dependency satisfies Blinka's availability check,
+but no NeoPixel/PIO module is loaded or exercised. This does not establish
+coexistence with active NeoPixels or Piomatter. Both scheduler opt-ins remain
+disabled, and no PIO, kernel header PWM, priority, affinity, governor, fan or
+boot configuration is changed.
+
+The pre-capture plan SHA256 is
+`04869dae6b202202fc2c2b6bfdaa1dbaa7bcaf5a2f8a946ee65d81073a1c6161`.
+GPIO18/ch0 and GPIO23/ch1 are recorded at 100 MSa/s without glitch filtering.
+Both actual local collection commands and helper SSH commands exit 0, with
+15 phase readbacks, ten consumer actions, 41 caller events and three distinct
+private output generations. Native public PWMOut is used unwrapped with the
+real Pin objects. Scoped import instrumentation refuses GPIO claims/writes,
+restores its hooks, and closes only its owned lgpio import handle after native
+output cleanup; that close is lab instrumentation, not a claim about Blinka's
+automatic global-handle cleanup. Each private native output is low/read/released
+independently, including the surviving sibling.
+
+Each recording retains 826/706 edges, initial/final low levels, 21/20/20 Servo
+pulses and 350/351 forward/reverse-half pulses. Every complete high, low, adjacent
+rise, boundary and diagnostic fragment remains in the reports and independent
+audit. The full reverse region in repeat 2 includes the anomalous pulse below;
+it is not limited to the eligible width fragments.
+
+| Complete descriptive pulse set | Maximum absolute native target error, r1 / r2 (µs) |
+| --- | --- |
+| Servo angle0, 999.771 µs | 3.279 / 3.009 |
+| Servo angle90, 1499.657 µs | 1.807 / 2.647 |
+| Servo angle180, 1999.847 µs | 4.957 / 0.757 |
+| Motor forward-half, 499.992 µs | 1.022 / 1.292 |
+| Motor reverse-half, all 351 highs | 7.228 / 191.132 |
+
+Repeat 1 supports the frozen ordered joint topology without ambiguity entries.
+Repeat 2 does **not**: GPIO23 reverse pair 259 is 308.860 µs high, versus the
+499.992-µs target, with adjacent rise intervals 1195.990/805.740 µs. The reverse
+region spans 308.860–507.220 µs and splits into 258 eligible pulses, the retained
+short pulse, then 92 eligible pulses. The report preserves two reverse candidates
+in one ambiguity entry and withholds complete joint topology. Both saved-SAL
+channel re-exports byte-match all four original raw exports, so the short pulse
+is also present in the saved recording. Diagnostic identity bands are not timing
+acceptance criteria.
+
+No direction-boundary overlap is observed. Repeat 1 has a 0.480-µs digital
+both-low handoff gap; repeat 2's raw first-rise gap is 0.150 µs, while its selected
+topology gap is withheld because the reverse association is nonunique. These
+uncalibrated digital observations are not deadtime or actuator-safety evidence.
+Source inspection shows that the falling deadline stays anchored to cycle start,
+not to completion of the rising write. The anomalous shape is consistent with a
+late rise followed by that falling deadline and next-cycle phase recovery; the
+preserved illustrative phase model does not measure C deadlines or distinguish
+wake/preemption, ioctl/driver and electrical delay. No production fix or delay
+cause is established by this sample alone. Earlier consumer and frequency-update
+outliers remain unresolved rather than being superseded by quieter recordings.
+
+All 60 selected package tests pass in the fresh installed Pi environment without
+GPIO use; this is not the omitted native C/trace tool suite. All 396 combined
+hardware-free lab cases pass, with scoped lint/format checks clean. Independent
+pre-report reconstruction passes 146 receipt checks; later comparison finds zero
+mismatches across 299 raw/report checks, preserving the initial audit bytes.
+Nonempty stderr contains retained host-local gRPC fork-child diagnostics, distinct
+from Pi helper PIDs 6308/6329; no timing cause is attributed to those messages.
+Helper durations 3.968193/3.957496 seconds describe the entire lab protocol, not
+setter latency. Temperatures across captures are 47.4–48.5°C, firmware flags 0.
+
+Read-only postflight at 23:26:30 UTC confirms all 122 recorded PIDs absent,
+both GPIOs unclaimed/output-low, 47.4°C / flags 0, matching selected sources and
+unchanged boot/configuration/provider identity. The separate cooling PWM3 is
+retained at 41566-ns period, inverse polarity and duty 0 in pre/post snapshots;
+unused PWM0–2 remain 0 ns. No claim about unobserved fan behavior is made.
+
+Recovery archive
+`hardware-evaluation/2026-10-07/pi5-installed-blinka-consumer-evaluation.tar.gz`:
+6,913,796 bytes, SHA256
+`59f3b680d1420faa9a11dbd1925ab24583bec181a4a70b24742404f99bda4748`.
+Fresh safe extraction byte-matches all 164 explicit regular files. Isolated
+offline replay reproduces both complete report JSON objects exactly, with no
+fact or path adjustments. Source archives, actual wheels/build/install logs,
+failed/corrected probes, exact methods/tests, plans/manifests, SAL/raw captures,
+cleanup/state receipts, independent audits and the source diagnosis are retained.
+See the dated README for recovery limitations. Earlier archives remain immutable;
+this is installed Pi 5 functional evidence, not overall parity or migration
+readiness. Warning-free documentation build also passes.

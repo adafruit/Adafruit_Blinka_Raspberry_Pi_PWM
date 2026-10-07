@@ -323,6 +323,92 @@ helpers drive GPIOs or launch workers; state scripts contact the original host.
 The temporary `pwmio` fixture is not installed Blinka/actual-actuator coverage.
 Earlier archives and production source remain unchanged.
 
+## Installed Blinka consumer checkpoint
+
+`pi5-installed-blinka-consumer-evaluation.tar.gz` preserves two idle Pi 5
+passive-probe recordings through real installed `board`/`pwmio`, real D18/D23
+Pin objects and genuine motor 3.5.0 Servo/DCMotor. Archive: 6,913,796 bytes;
+SHA256:
+`59f3b680d1420faa9a11dbd1925ab24583bec181a4a70b24742404f99bda4748`.
+Fresh safe extraction byte-matches all 164 explicit regular files; isolated
+offline replay reproduces both complete report JSON objects exactly, without
+fact or path adjustments. The frozen pre-capture plan SHA256 is
+`04869dae6b202202fc2c2b6bfdaa1dbaa7bcaf5a2f8a946ee65d81073a1c6161`.
+
+Both actual collection/helper commands exit 0 with the 15-phase, ten-action,
+41-event, three-private-owner protocol and independent low/read/release cleanup.
+Both recordings have 826/706 GPIO18/23 edges, 21/20/20 Servo pulses and
+350/351 forward/reverse-half pulses, with initial/final low. Repeat 1 supports
+the frozen ordered topology. Repeat 2 retains a **308.860-µs reverse high**
+against a 499.992-µs target, with adjacent periods 1195.990/805.740 µs and
+full-region maximum absolute error 191.132 µs. Its reverse fragments are
+258/one short pulse/92; two eligible candidates remain ambiguous, so complete
+joint topology is withheld. All raw arrays, extrema, fragments and boundaries
+are preserved. All four saved-SAL raw re-exports are byte-identical. This is not
+an all-clear timing, quantitative parity, actuator or default-migration verdict.
+
+The private Python 3.13.5 environment installs test-only Blinka
+`9.0.5.dev74+pwmeval.beb49bf` from `beb49bf`, with the existing dispatch patch;
+it is not a published release. PWM is rebuilt from `0e1c7cd`, with production
+source unchanged from `d5debaf`, both scheduler opt-ins disabled and no PIO.
+Exact 23 actual runtime wheels, build/install logs, seven selected versions and
+72 selected helper/runtime source hashes are preserved. Installed selected
+distribution files match their wheel members. The fresh ARM64 extension hash is
+`86e3c5f580c0c2599f29e12c0846189543726a73544cbe93a84a7b45cbb8b214`.
+The original/patched source tar files have 501/1,147 regular files because of
+646 extra AppleDouble entries; no original file is missing and only pwmio.py
+changes among common original files. The built Blinka wheel has 417 entries,
+none AppleDouble. The tar file sets are not identical.
+
+The first import-only probe failed on incorrect expected detector IDs. Its
+receipt and pre-correction helper remain preserved; the corrected probe checks
+actual PlatformDetect 3.89.1 `RASPBERRY_PI_5`/`BCM2XXX` IDs and passes without
+GPIO claims/writes. The installed NeoPixel dependency satisfies Blinka's check,
+but no NeoPixel/PIO module is loaded or exercised. Scoped lab instrumentation
+restores import hooks and closes its own lgpio handle after output shutdown;
+that close is not credited to automatic library-global cleanup.
+
+All 60 selected installed package tests and 396 combined hardware-free lab
+cases pass; scoped lint/format and warning-free documentation build pass.
+The independent initial reconstruction passes 146 receipt checks; later final
+comparison has zero mismatches in 299 checks without editing the initial audit.
+Nonempty host gRPC fork-child stderr is preserved, distinct from Pi helper PIDs.
+Postflight records 122 prior/capture PIDs absent, both pins unclaimed/output-low,
+47.4°C / flags 0 and unchanged boot/configuration/provider identity. The separate
+fan PWM3's observed duty is 0 at 41566-ns inverse period in pre/post snapshots;
+unused PWM0–2 stay 0 ns. No unobserved fan behavior is asserted.
+
+Contents include all collection/report data, five opaque preparation archives,
+seven install logs/reports, actual wheels, failed/corrected import receipts,
+source inventory, unit-test receipts, state chain, methods/tests and independent
+audit/diagnosis sources. The recorded late-rise interpretation is consistent
+with phase-anchored falling deadlines, not a measured cause or a fix decision.
+Earlier outliers and archives remain unchanged.
+
+Extract into a separate empty directory. With existing matching Python
+dependencies (the verified replay used genuine motor 3.5.0 and Saleae automation
+1.0.11), change to its `pwm-measurements` directory and use a fresh output name:
+
+```console
+python analyze_installed_blinka_pwm_consumers.py oct7-pi5-installed-blinka-consumers-r1 oct7-pi5-installed-blinka-consumers-r2 --plan oct7-installed-blinka-consumers-plan.json --output-name replay.json
+```
+
+The checkpointer's isolated `REPLAY` compares reproduced JSON to both saved
+reports exactly. Do not run its `main()` for replay: it requires original source
+paths and exclusive new outputs. Offline report replay needs no board/pwmio
+imports, SSH, GPIO, installation or Saleae hardware calls. The retained ARM64
+wheel/extension is evidence, not a macOS runtime component.
+
+To rerun source-only recording fixtures, restore the original Blinka source
+tree separately from `installation-preparation/blinka-source.tar.gz`. The
+integration patch is explicitly retained at
+`Adafruit_Blinka_Raspberry_Pi_PWM/docs/blinka-integration.patch`; it is **not**
+inside `pwm-source.tar.gz`. The selected native Python files retain the expected
+sibling layout. Source archives remain opaque during the verified report replay;
+do not blindly unpack or install them to reproduce reports. Capture/helpers drive
+GPIOs, state scripts contact saved hosts, and saved `/tmp` paths can expire.
+Confirm fresh bench/source/ownership before any live use.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
