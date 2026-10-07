@@ -115,6 +115,15 @@ Its recovery archive also retains the independent method scripts and reproduces
 all four report facts after safe byte-checked extraction. See the dated README
 and `docs/draft-results.md`; earlier checkpoints remain immutable.
 
+The separate paired loaded-consumer checkpoint adds four alternating-order
+original-lgpio/native recordings with independently verified two-worker overlap
+through every consumer phase/readback. It retains complete extrema/boundaries,
+the automatic-cooling-compatible fan duty change, raw/load/cleanup/state evidence
+and independent method sources. Safe byte-checked recovery reproduces four
+waveform and four workload-overlap reports. These finite functional results are
+not overall parity or installed Blinka/actuator qualification; see the dated
+README for the archive and replay details.
+
 Snapshot SHA256:
 `d052d0bbed06d6c0361cbb39b043814ef5c5fa4e633a698244c3487544a26ab0`.
 The archive is approximately 77 MB and is explicitly excluded from source

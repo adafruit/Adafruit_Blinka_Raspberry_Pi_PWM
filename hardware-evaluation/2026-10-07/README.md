@@ -264,6 +264,65 @@ outputs and preserve original bench paths. Earlier native outliers remain
 unresolved; this idle functional pairing is not overall quantitative parity,
 installed Blinka/actuator compatibility or production-backend readiness.
 
+## Paired original-lgpio/native consumers under bounded load
+
+`pi5-consumer-loaded-paired-evaluation.tar.gz` preserves four fresh recordings
+in original → native, then native → original order. The genuine motor 3.5.0
+Servo/DCMotor protocol and both source implementations are unchanged. Each
+run has two owned, independently expiring ten-second CPU workers; actual
+worker intervals independently bracket the entire helper and all fifteen
+readback-inclusive phases. This is not CPU saturation or synchronized
+electrical timing proof. Both scheduler opt-ins remain disabled; no PIO is used.
+
+Archive: 1,431,905 bytes; SHA256:
+`a9feb3694b18cbbef6c95e6bc05f69e061d551f4662fd8c3002f274a66305c23`.
+Fresh safe extraction byte-matches 103 explicit targets / 149 regular files;
+isolated replay reproduces two original and two native waveform reports plus
+all four worker-overlap reports. Only the verified absolute original plan
+location is relocated. The loaded pre-capture plan hash is
+`1cedb74c5e1ff8531fe7b34d3e8da3aa37643ebc28a1341562db9468a512694b`.
+
+Complete pulse extrema, lows, periods and boundaries are retained. Native
+maximum absolute Servo/motor-half target errors are 4.641/8.268 µs across the
+two runs; original extrema include 68.400-µs Servo and 44.700-µs motor-half
+errors. Original complete direction changes have 0.610-µs sampled both-high
+overlaps; native has 4.170/7.250-µs both-low gaps. Neither diagnostic identity
+bands nor these finite, uncalibrated digital observations establish parity,
+deadtime, actuator safety or production readiness. See `docs/draft-results.md`
+for backend-specific nominals, every group and unresolved earlier outliers.
+
+The independent audit was frozen before reports: all eight saved-SAL exports
+are byte-identical and 2,156 receipt/source/ownership checks pass. Later final
+comparison has zero mismatches in 1,218 main checks plus 293 receipt checks.
+All 476 combined hardware-free cases and scoped lint/format pass. State receipts
+confirm 120 recorded PIDs absent, both GPIOs unclaimed/output-low, 52.35°C /
+flags 0 and unchanged boot/configuration/provider identity. Fan PWM3 changes
+from 0 to enabled duty 12225 ns at the same 41566-ns period; this is consistent
+with automatic cooling, not proof of its cause or unchanged fan duty.
+
+The archive includes four capture directories, twelve actual load/coordination
+sidecars, exact sources/tests, both manifests, plan and state chain, selected
+native/consumer provenance, audits and ten method/check files in `audit-source/`.
+Nonempty host gRPC fork-child stderr is preserved, distinct from Pi helper PIDs.
+Original lab low/cancel/free/close is separate from public flags-only deinit.
+Waveform reports omit load proof; actual worker receipts and coordination audits
+provide it separately. Method scripts retain their original paths/output
+behavior and must be inspected before reuse.
+
+Offline waveform replay from a fresh extraction uses exclusive outputs:
+
+```console
+python analyze_lgpio_pwm_consumers.py oct7-pi5-lgpio-consumers-loaded-r1 oct7-pi5-lgpio-consumers-loaded-r2 --plan oct7-lgpio-consumers-loaded-plan.json --output replay.json
+python analyze_native_pwm_consumers.py oct7-pi5-paired-native-consumers-loaded-r1 oct7-pi5-paired-native-consumers-loaded-r2 --output-name replay.json
+```
+
+The included checkpointer's isolated `REPLAY` additionally verifies all four
+worker-overlap JSON objects. Do not rerun its `main()` to replay: it requires
+exclusive fresh outputs and the original external method paths. Capture/load
+helpers drive GPIOs or launch workers; state scripts contact the original host.
+The temporary `pwmio` fixture is not installed Blinka/actual-actuator coverage.
+Earlier archives and production source remain unchanged.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API

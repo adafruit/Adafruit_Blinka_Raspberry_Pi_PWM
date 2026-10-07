@@ -2454,3 +2454,89 @@ All other hashes, raw arrays and receipt/report facts must match. Exact sources,
 tests, plans/manifests, SAL/raw channels, actual stderr, pre/postflight, selected
 native/consumer provenance, independent audits and their method scripts are
 preserved. See the dated recovery README; earlier checkpoints stay immutable.
+
+### Paired consumer-library recordings under bounded CPU load
+
+Four further passive-probe recordings use original → native, then native →
+original, with the same genuine motor 3.5.0 protocol, selected sources, backend
+nominals and GPIO18/ch0 + GPIO23/ch1 wiring as the idle pairing above. The new
+pre-capture plan SHA256 is
+`1cedb74c5e1ff8531fe7b34d3e8da3aa37643ebc28a1341562db9468a512694b`.
+Each run starts two privately owned, independently expiring ten-second workers
+performing `sum(range(10000))`. Independently reconstructed actual worker
+intervals bracket the entire helper and all fifteen phases through final
+readbacks; launcher receipts alone are not this proof. This is bounded load,
+not demonstrated CPU saturation or electrical-clock alignment. Production,
+both disabled scheduler opt-ins, PIO exclusion and system configuration remain
+unchanged.
+
+| Descriptive complete pulse set | Original maximum absolute target error, r1 / r2 (µs) | Native maximum absolute target error, r1 / r2 (µs) |
+| --- | --- | --- |
+| Servo angle0 | 36.830 / 1.840 | 3.139 / 4.641 |
+| Servo angle90, different backend nominal widths | 2.930 / 27.330 | 4.367 / 3.417 |
+| Servo angle180 | 68.400 / 47.370 | 4.193 / 2.183 |
+| Motor forward-half | 41.790 / 44.180 | 0.832 / 1.102 |
+| Motor reverse-half | 38.200 / 44.700 | 8.268 / 7.868 |
+
+These extrema retain every complete high in the independent descriptive raw
+groups, not only the analyzer's isolated candidates. Original r1 includes
+963.170/1031.360-µs Servo0 highs and a 1931.600-µs Servo180 high; r2 includes
+1372.670-µs Servo90 and 2047.370-µs Servo180 highs. Motor forward widths span
+458.210–521.240 / 497.210–544.180 µs; reverse widths span
+498.620–538.200 / 482.680–544.700 µs. Full highs, lows, adjacent rises and all
+boundaries are preserved. The frozen symmetric `math.isclose` identity band
+accepts these ordinary width/period groups; supplementary target-normalized
+±10% membership agrees in this batch. Neither diagnostic band establishes
+quantitative parity. Earlier native consumer and frequency-update outliers
+remain unresolved; these better finite loaded samples do not erase them.
+
+Original r1/r2 retain 822/822 GPIO18 edges and 704/706 GPIO23 edges, twenty pulses
+per Servo group, and 349 forward / 350 or 351 reverse-half pulses. Native retains
+826/706 edges in both runs, 21/20/20 Servo and 350/351 motor-half pulses. Different
+counts are not proof of missed command cycles with these unaligned timebases.
+Both original full extents have a 0.610-µs sampled peer-high direction boundary;
+both reports withhold complete isolated ordered topology and retain three
+ambiguity entries. Native full extents support the frozen ordered topology,
+with 4.170/7.250-µs both-low handoff gaps. These digital observations are not
+calibrated deadtime, application latency or motor-driver safety qualification.
+
+All four actual consumer/load SSH exits are 0, both workers per run exit 0 and
+are reaped, and all ownership/protocol/cleanup checks pass. The original's
+privately owned lab cancellation/low/read/free/close remains distinct from its
+public flags-only deinit. Minimum whole-helper start/end worker margins are
+1.100663/4.979766, 1.062002/5.116619, 0.986209/5.192253 and
+1.013173/5.067257 seconds in capture order. Helper durations are
+3.919416/3.821196/3.821286/3.919596 seconds; these are whole lab protocols,
+including cleanup and receipt work, not comparative setter latency.
+
+The initial independent audit/notes were frozen before report generation.
+All eight saved-SAL raw-channel exports are byte-identical; 2,156 independent
+receipt/source/ownership checks pass. Nonempty local gRPC fork-child stderr
+diagnostics remain preserved and distinct from Pi helper PIDs; load stderr is
+empty in each run. Read-only postflight at 22:31:38 UTC confirms all 120 recorded
+PIDs absent, both pins unclaimed/output-low, matching selected sources and
+unchanged boot/configuration/provider identity. Temperature rises from 46.85°C
+to 52.35°C with firmware flags 0. The separate cooling fan PWM3 duty changes
+from 0 to enabled 12225 ns at unchanged 41566-ns period; unused PWM0–2 remain
+0 ns. This is consistent with automatic cooling, not proof of its cause or a
+claim that fan duty stayed unchanged. Installed Blinka, actual actuators and
+the other validation gates remain untested by this temporary `pwmio` fixture.
+
+The separate final comparison finds zero mismatches in 1,218 main waveform/
+scope checks plus 293 receipt checks. Waveform reports do not contain worker
+overlap evidence; the independent raw-worker reconstructions and actual load
+receipts remain the separate proof. All 476 combined hardware-free cases,
+scoped lint/format checks and warning-free documentation build pass.
+
+Recovery archive
+`hardware-evaluation/2026-10-07/pi5-consumer-loaded-paired-evaluation.tar.gz`:
+1,431,905 bytes, SHA256
+`a9feb3694b18cbbef6c95e6bc05f69e061d551f4662fd8c3002f274a66305c23`.
+Fresh safe extraction byte-matches 103 explicit top-level targets / 149 regular
+files. Isolated replay reproduces both original and both native waveform
+reports and all four worker-overlap reports, with only the verified absolute
+original plan location relocated. Exact frozen sources/tests, plans/manifests,
+SAL/raw channels, load/stdout/stderr/coordination, state chain, independent
+audits and ten independent method/check files are preserved. Earlier archives
+and production source remain unchanged; this is paired functional-under-load
+evidence, not overall quantitative parity or migration readiness.
