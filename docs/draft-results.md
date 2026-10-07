@@ -2074,3 +2074,76 @@ reproduces all 24 new reports across both checkpoints, the five earlier paired
 reports and the complete follow-up distribution report. Previous matrix data
 is included as an exact dependency; older archives remain unchanged.
 Electrical marker bracketing remains the next measurement. Production is unchanged.
+
+### Same-acquisition GPIO23 electrical markers
+
+Four idle captures now record PWM GPIO18/channel 0 and a private GPIO23/channel 1
+marker in the same physical acquisition. The frozen 31-phase protocol alternates
+ordinary/high/recovery/low at 50 and 500 Hz, then changes frequency. Every changed
+public setter is bracketed by GPIO23 high-before / low-after writes. There are
+32 sequence markers per run, plus one separately categorized native low-cleanup
+marker. Native keeps both scheduler options off and enables variable frequency;
+original defaults False but permits writes. No production implementation changes.
+The pre-capture plan SHA256 is
+`bf5f530a0e6c8d8c4956d307ccfb86ba386453eee166dddef5d6205178f4f63f`.
+
+All four helpers/collectors exit 0 with independent owned-low/release receipts
+for both pins. PWM edges are 378/398/398/378, marker edges 64/66/66/64, in
+original/native/native/original order. Every marker pairs strictly by validated
+setter ordinal and scope. Both raw channels are complete and low at their ends;
+neither contains a sampled sub-µs interior low. SAL confirms physical channels 0/1,
+100MSa/s and no glitch filtering. Selected-source hashes cover eighteen files,
+not a whole-system attestation; library versions are gpiod 2.5.0 / lgpio 0.2.2.0.
+
+Twenty-one of the 24 ordinary-to-high commands have PWM unambiguously low at
+marker rise and one subsequent sustained-high run identifiable before the next
+marker. Three original 500Hz cases are already high and remain ambiguous.
+The intervals below are `[PWM edge − marker fall, PWM edge − marker rise]`.
+Ranges span the smallest lower to largest upper endpoint, not confidence
+intervals or backend guarantees. Per-trial bounds remain in each report.
+
+| Observed physical event | Native range | Original range | Eligible observations per backend |
+| --- | --- | --- | --- |
+| 50Hz ordinary→high sustained-run start | 6.90198–16.92831 ms | 4.24873–15.14301 ms | 6 / 6 |
+| 500Hz ordinary→high sustained-run start | 924.86–935.91 µs | 208.14–885.29 µs | 6 / 3; three original cases ambiguous |
+| 50Hz high→ordinary first fall | 1.50373–1.51618 ms | 5.56573–16.44938 ms | 6 / 6 |
+| 500Hz high→ordinary first fall | 1.00509–1.01429 ms | 1.12656–2.67505 ms | 6 / 6 |
+
+Both implementations can wait through part of an ordinary PWM cycle before
+the continuous-high run starts. Recovery first falls include the resumed high
+width (native/original nominal 1499.962/1400 µs at 50 Hz, 1000.015/1000 µs at 500 Hz).
+They are not exact internal adoption/start delay. Native 50-Hz observed holds
+are 104.67308–114.69340 ms, original 121.39890–121.39903 ms, for 120-ms commanded
+dwells. At 500 Hz the 60-ms dwell yields native 60.15564–60.15985 ms versus
+original 60.99921–60.99981 ms. Observed start/recovery-fall differences delimit
+these widths; shorter native holds alone do not establish a slower endpoint
+response. No source-causal or general on-par conclusion follows from these
+unequal phase positions and finite samples.
+
+Same-acquisition channels support physical marker-relative intervals, but Pi
+clocks remain unaligned. GPIO-driver/threshold skew and Saleae timebase are
+uncalibrated; 10-ns nominal samples are not analog or sub-sample glitch proof.
+Markers add caller overhead and do not identify an exact invocation instant.
+Already-high/low cases and recovery timing retain their ambiguities; a >30-ms
+high tag is descriptive, not automatic command proof. All edges, complete highs,
+nearby periods and both marker-boundary levels are retained without trimming.
+
+Independent raw/SAL/receipt reconstruction matches all 21 eligible starts,
+three ambiguous cases and 24 recovery intervals exactly. The 63 hardware-free
+marker/helper/collector/analyzer cases and scoped lint/format checks pass.
+Temperatures are 46.30–48.50°C with firmware flags 0. The read-only postflight
+at 20:21:23 UTC confirms all 88 recorded PIDs absent, both GPIO18/23 unclaimed and
+output-low, unchanged boot ID/configuration, only the fan provider, and 47.40°C.
+Release does not restore input pinmux. Normal watchdogs still cannot bound
+native hangs, SIGKILL or hardware faults.
+
+The exclusive recovery archive
+`hardware-evaluation/2026-10-07/pi5-electrical-marker-evaluation.tar.gz` is
+458,154 bytes, SHA256
+`753ad8992ffb5c1839f6e96193ffe9e9ba6701acb9e2c70cde334fc5aa21098e`.
+Fresh safe extraction byte-matches 31 explicit targets / 66 regular files and
+reproduces all four reports exactly. Exact executed helpers, analysis/test
+dependencies, frozen plan/manifest, selected-library hashes/versions, pre/postflight,
+independent audit and preserved native binary/source provenance are included.
+Previous archives remain unchanged. Dual-output operation and independent
+shutdown/restart are next; production and Blinka remain unchanged.

@@ -13,6 +13,11 @@ matched loaded pairs and independently audited error distributions. The prior
 330-µs native event remains separate and unresolved; better follow-up samples
 are not a tail/parity guarantee. Recovery and replay details are in the dated README.
 
+`2026-10-07/pi5-electrical-marker-evaluation.tar.gz` adds four two-channel
+setter-bracketing recordings. It retains every edge and explicitly ambiguous
+cases; physical marker-relative intervals are not exact adoption latency or
+an overall on-par verdict. Both pins release low and the fan remains unchanged.
+
 The October 7 default-native 50-Hz update comparison is preserved separately in
 `2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
 It includes two new native captures, the two unchanged original-lgpio

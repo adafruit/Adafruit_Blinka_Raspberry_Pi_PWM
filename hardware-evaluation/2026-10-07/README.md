@@ -66,6 +66,34 @@ Offline replay uses `python analyze_native_frequency_loaded_followup.py --output
 from a fresh extraction. Do not rerun the checkpoint creator against existing
 archives. Review bench ownership and paths before any hardware helper execution.
 
+## Electrical marker checkpoint
+
+`pi5-electrical-marker-evaluation.tar.gz` preserves four matched idle GPIO18 PWM /
+GPIO23 marker captures. Size 458,154 bytes; SHA256:
+`753ad8992ffb5c1839f6e96193ffe9e9ba6701acb9e2c70cde334fc5aa21098e`.
+All 31 targets / 66 regular files byte-match a fresh safe extraction and reproduce
+all four analysis reports. Sources/tests, raw channels, source manifests,
+independent audit, pre/postflight and native binary/source provenance are included.
+
+Thirty-two sequence marker pulses pair strictly to setters; native has one extra
+separate cleanup pulse. Twenty-one ordinary→high starts are identifiable from
+low-at-marker cases; three original 500-Hz already-high cases remain ambiguous.
+Recovery first falls include resumed pulse width, not exact adoption delay.
+Both backends can wait part of a cycle before entering sustained-high output;
+different hold widths alone do not establish a slow-native endpoint regression.
+Same-acquisition intervals are uncalibrated finite threshold facts, not precise
+internal adoption latency or overall parity. Read the dated results before use.
+
+Offline replay after fresh extraction (requires Saleae's Python package):
+
+```console
+python analyze_gpio_pwm_marker.py oct7-pi5-lgpio-marker-updates-r1 oct7-pi5-native-marker-updates-r1 oct7-pi5-native-marker-updates-r2 oct7-pi5-lgpio-marker-updates-r2 --output-name replay.json
+```
+
+Selected third-party hashes/versions are retained, not all third-party binaries.
+The ARM64 native extension is evidence, not a macOS runtime. Hardware helpers
+drive both confirmed pins and require new bench/source/ownership verification.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
