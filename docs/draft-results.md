@@ -1815,3 +1815,107 @@ prior rounding analyzer/test and pre/postflight. The 14-MB full runtime backup
 remains separately preserved locally/remotely and is not duplicated here.
 Earlier diagnostics, rejections and archives remain unchanged. **Baseline
 parity/default-backend readiness are unestablished; production is unchanged.**
+
+## Pi 5 default-native 50 Hz duty-update comparison, October 7
+
+Two idle recordings now exercise the actual draft public API against the two
+retained original-lgpio `half50-direct` references. The sequence is 50 Hz,
+duty `0 → 32768 → 65535 → 32768 → 0`, held for
+0.2 / 0.4 / 0.3 / 0.4 / 0.2 seconds. Both scheduler options remain off and
+`variable_frequency` retains its default `False`. The draft receives the
+explicit, preflight-verified RP1 controller plus offset18; the original Pin
+resolves the same controller/line. Only duty setters run, avoiding the original's
+different writable-frequency behavior. There are no added sequence settling
+waits; the separately recorded 100-ms low settle belongs to bench cleanup.
+
+The installed Python files and all six retained native C/header files match
+production source at `80d5f69` (unchanged since `d5debaf`). The previously built
+extension is source-pinned and preserved, not rebuilt for this comparison.
+The bench still uses kernel `6.12.75+rpt-rpi-2712`, Python3.13.5, and native
+gpiod2.5.0. Boot ID/configuration match the original references. No kernel PWM,
+PIO, bench scheduler/priority/affinity change, load worker, or fan write is used.
+CPU scaling is not fixed: native repeat2 records 1.9→2.4 GHz.
+
+Before capture, `oct7-native-half50-plan.json` froze narrow, worst-observed
+baseline envelopes and pulse-count checks. Its SHA256 is
+`ebf2c59ea9e00dac0f3ea88e105ef47898c45e336aed453671dc3c38c6801d7a`.
+These are investigation flags derived from only two baseline samples, not
+calibrated statistical acceptance or an overall backend-parity verdict.
+
+| Observation | Original first / repeat | Native first / repeat |
+| --- | --- | --- |
+| Initial / recovery ordinary highs | 20/19 · 20/19 | 21/20 · 21/20 |
+| All captured edges | 80 / 80 | 84 / 84 |
+| All ordinary high widths (µs) | 9999.17–10049.14 / 9999.40–10015.80 | 9997.03–10004.35 / 9998.80–10004.93 |
+| Within-region rise periods (µs) | 19984.95–20059.70 / 20008.73–20032.11 | 19996.29–20003.47 / 19996.74–20003.58 |
+| Continuous-high duration (ms) | 310.34298 / 310.32369 | 290.16527 / 290.13674 |
+
+Native high-width error against the common 10000-µs reference is at most
+4.35 / 4.93 µs; against its exact 32768/65535 target of 10000.15259 µs it is
+4.19741 / 4.77741 µs. Native period error is at most 3.71 / 3.58 µs.
+All 41 interior lows per native capture are retained, including the two hold
+boundaries: 9998.01–10004.20 / 9997.64–10003.73 µs. Neither native trace has
+unmatched high runs or sampled sub-microsecond interior lows. The finite,
+uncalibrated 10-ns nominal sampling interval cannot exclude sub-sample glitches
+or establish analog signal quality.
+
+Both native reports flag exactly `initial_pwm_high_count` and `edge_count`:
+21 instead of the declared 20 initial highs, and 84 rather than 80–82 edges.
+The count limits remain unchanged; no boundary pulse is trimmed. Other
+predeclared physical and caller-return envelopes are met. Each trace contains
+41 ordinary highs plus one continuous-high run. Relative to the original,
+there is one extra ordinary high in each PWM region, not just the flagged
+initial-region difference; the recovery allowance was already 19–20.
+
+The worker samples a configuration at cycle entry. Configuration wakes do not
+truncate its high/low deadlines, so an update arriving after a cycle starts
+can leave that full outgoing cycle in place. Endpoint-to-interior recovery
+can merge its first high into the continuous-high run. That mechanism is
+consistent with these counts and shorter physical holds, but unaligned Pi and
+Saleae clocks do **not** prove which command caused a specific edge, nor exact
+command-to-electrical latency. Different boundary counts are a qualification
+of this comparison, not automatically a materially worse PWM implementation.
+
+Recorded initial/high/recovery/final setter durations are
+8.296 / 7.426 / 5.241 / 3.944 µs and
+9.592 / 5.315 / 3.703 / 3.685 µs, versus original
+15.501 / 9.175 / 11.543 / 8.028 µs and
+14.707 / 12.340 / 22.699 / 17.112 µs. These instrumented caller-return
+observations meet every frozen per-scope maximum; they are not synchronized
+electrical response measurements and do not imply immediate application.
+The kernel prototype's deliberate millisecond waits are absent here.
+
+Both collectors and remote helpers actually exit0. SAL settings independently
+confirm physical Logic8/channel0, 100 MSa/s, no glitch filter and no analyzers;
+raw version 0 exports omit a sample-rate field, so SAL supplies that provenance.
+Every raw edge, stdout, and nonempty informational gRPC-fork stderr is retained.
+Private GPIO18 claims are followed by duty 0, 100-ms settle, inactive 0 readback
+on that owned request, deinit, and read-only unused-line verification. No
+primary/cleanup error or signal is recorded. Temperatures are
+46.85→48.50°C and 46.30→48.50°C, with firmware flags 0 throughout.
+The normal-execution 14-s watchdog cannot bound a native hang or SIGKILL.
+
+The independent, exit0 postflight at 19:10:59 UTC finds both helper PIDs absent,
+GPIO18 unclaimed/output-low, GPIO23 unclaimed/input, unchanged boot SHA, and
+only the separate cooling-fan PWM provider owned. Release still does not
+promise restoration of input pinmux. A separate raw binary/ZIP audit reproduces
+counts, widths, holds, boundaries and receipt provenance without importing the
+new analyzer. The package suite passes 102 GPIO-free tests on Linux and
+73 with 29 Linux-only skips on macOS; the new recording/analysis fakes pass 63.
+Formatting and scoped isolated Ruff checks pass.
+
+The exclusive recovery archive
+`hardware-evaluation/2026-10-07/native-pi5-half50-evaluation.tar.gz` is 167,851
+bytes, SHA256
+`5d47826cb38be70f1c27412b66ebf19c9c1c6d918339440f518353404f18a7dc`.
+Fresh safe extraction byte-matches 22 explicit top-level targets (51 regular
+files), and both native reports, both original reports and the paired report
+reproduce exactly from that extraction. Exact scripts/tests/dependencies,
+frozen plan/manifest, compiled extension, source snapshot and pre/postflight
+are included. Earlier archives and diagnostics remain unchanged.
+
+This is encouraging low-frequency idle timing evidence, not a migration gate
+pass. Frequency-changing native API comparisons (with `variable_frequency=True`
+explicitly recorded), repeated loaded comparisons, electrical update-response
+bracketing and distinct-pin coexistence remain next. **Overall baseline parity
+and default-backend readiness remain unestablished; production is unchanged.**

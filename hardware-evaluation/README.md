@@ -1,5 +1,15 @@
 # Hardware evaluation recovery snapshot
 
+The October 7 default-native 50-Hz update comparison is preserved separately in
+`2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
+It includes two new native captures, the two unchanged original-lgpio
+references, all raw edges, fixed comparison limits, exact recording/analysis
+sources and tests, and the native binary/source provenance. Native widths and
+caller returns meet the narrow observed envelopes, while both traces retain
+the flagged extra outgoing pulse/total-edge count. Neither those flags nor the
+other passing comparisons establish overall backend parity. Blinka and the
+production package are unchanged.
+
 The incremental October 6 diagnostics are in `2026-10-06/diagnostics.tar.gz`
 `2026-10-06/kernel-diagnostics.tar.gz`, and
 `2026-10-06/kernel-pwm-evaluation.tar.gz`, and
