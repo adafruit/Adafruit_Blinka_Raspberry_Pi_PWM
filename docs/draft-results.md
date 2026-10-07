@@ -2024,3 +2024,53 @@ These results justify continued evaluation, not a backend switch. The loaded
 outlier and endpoint-update response need investigation; longer matched timing,
 distinct-pin coexistence and wider board coverage remain. **Overall on-par
 behavior and default-backend readiness are unestablished; production is unchanged.**
+
+### Loaded frequency outlier recurrence follow-up
+
+Four further matched frequency pairs (eight captures) use the same untouched
+helpers, default flags, public setter sequence and two ten-second CPU workers.
+Backend order alternates original/native and native/original. A separate plan
+is frozen before capture, SHA256
+`6798dc13b9214aff0217f715b56f457c895f5cd20202df75c6bc30f127fc6758`.
+The previous investigation limits remain unchanged. New >50/>100/>250-µs
+absolute-high-error counts and type-7 percentiles are explicitly descriptive,
+not acceptance gates. All nearest-regime anomalous highs remain included.
+
+| Follow-up backend / ordinary region | High count | Max / median / p95 / p99 absolute high error (µs) | >50 / >100 / >250 µs |
+| --- | --- | --- | --- |
+| Native / 50Hz duty4915 | 164 | 6.542 / 0.622 / 2.232 / 3.2137 | 0 / 0 / 0 |
+| Native / 500Hz duty32768 | 764 | 29.065 / 0.365 / 0.6835 / 2.532 | 0 / 0 / 0 |
+| Original / 50Hz duty4915 | 160 | 3.920 / 0.330 / 1.257 / 2.1146 | 0 / 0 / 0 |
+| Original / 500Hz duty32768 | 784 | 125.260 / 0.150 / 0.400 / 5.286 | 1 / 1 / 0 |
+
+The original 125.260-µs error occurs in followupA-r1 pair160: high1125.26 µs,
+following low879.65 µs and rise period2004.91 µs. Native extrema include a
+970.95-µs high (−29.065 µs) and a 1025.12-µs high (+25.105 µs). No nearby
+intermediate-width high or sampled sub-µs low occurs. Every edge, anomaly and
+boundary remains preserved. Native ordinary counts are 21/191/20 with 466
+edges each; original counts are 20/191–200/20 with 464–482 edges.
+
+The earlier native 330.018-µs observation remains in a separate evidence group,
+with one sample above each cutoff. It is not removed or pooled away. Its cause
+is unresolved: no recurrence in these four additional native captures is not
+a tail guarantee or proof that the earlier event was harmless. Native median
+errors are slightly larger here while its worst 500Hz observation is smaller;
+these finite distributions do not establish general on-par behavior.
+
+All sixteen actual new workers bracket every phase and the entire PWM helper;
+durations are 10.000008177–10.000212883 seconds. Independent raw/SAL and receipt
+recomputation matches every per-capture/aggregate percentile and cutoff count.
+The read-only postflight at 20:08:05 UTC confirms all 84 recorded PIDs absent,
+pins unclaimed (GPIO18 low), unchanged boot configuration, only the fan PWM
+provider and 45.75°C/flags0. Thirty-one new offline analyzer cases pass.
+Pi phase clocks remain unaligned to Saleae and no electrical latency is inferred.
+
+The additional exclusive archive
+`hardware-evaluation/2026-10-07/native-pi5-frequency-followup-evaluation.tar.gz`
+is 1,489,337 bytes, SHA256
+`540722861b7e3aa50a95d29b892ac7db66ca8d880de1373e765175ee54b2463a`.
+Fresh safe extraction byte-matches 186 explicit targets / 384 regular files,
+reproduces all 24 new reports across both checkpoints, the five earlier paired
+reports and the complete follow-up distribution report. Previous matrix data
+is included as an exact dependency; older archives remain unchanged.
+Electrical marker bracketing remains the next measurement. Production is unchanged.

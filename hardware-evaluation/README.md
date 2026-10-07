@@ -8,6 +8,11 @@ encouraging, but a retained 330-µs loaded high-pulse error and endpoint respons
 differences still need investigation. No on-par/default-migration verdict or
 production change is implied.
 
+`2026-10-07/native-pi5-frequency-followup-evaluation.tar.gz` adds four further
+matched loaded pairs and independently audited error distributions. The prior
+330-µs native event remains separate and unresolved; better follow-up samples
+are not a tail/parity guarantee. Recovery and replay details are in the dated README.
+
 The October 7 default-native 50-Hz update comparison is preserved separately in
 `2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
 It includes two new native captures, the two unchanged original-lgpio

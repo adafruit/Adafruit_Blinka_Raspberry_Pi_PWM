@@ -45,6 +45,27 @@ matching package source, recoverable from the included production-source tar.
 Do not run hardware helpers without a fresh bench/ownership/source check.
 GPIO23 was not driven in this checkpoint; electrical marker tests are later work.
 
+## Loaded frequency follow-up checkpoint
+
+The separate `native-pi5-frequency-followup-evaluation.tar.gz` adds four matched
+loaded frequency pairs, retaining the prior evidence as a separate report group.
+Size: 1,489,337 bytes; SHA256:
+`540722861b7e3aa50a95d29b892ac7db66ca8d880de1373e765175ee54b2463a`.
+Its 186 explicit targets / 384 regular files safely extract and byte-match;
+all 24 new capture reports, five paired comparisons and the distribution report
+reproduce. Exact prior matrix dependencies are included, not altered.
+
+New native maxima are 6.542 µs (50Hz) and 29.065 µs (500Hz), original maxima
+3.920/125.260 µs. The earlier native 330.018-µs event remains separate and its
+cause unresolved; non-recurrence here is not a tail/parity guarantee. All sixteen
+new workers bracket every phase and helper. The independent audit and read-only
+postflight are retained alongside raw data, plans, exact sources and fake tests.
+No GPIO23 marker captures are included yet.
+
+Offline replay uses `python analyze_native_frequency_loaded_followup.py --output replay-followup.json`
+from a fresh extraction. Do not rerun the checkpoint creator against existing
+archives. Review bench ownership and paths before any hardware helper execution.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
