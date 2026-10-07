@@ -106,6 +106,15 @@ The production source, tests, and result interpretation are tracked normally in
 this repository. The shared scheduler and short-slice options remain off by
 default, PIO is excluded, and Blinka has not been switched to this backend.
 
+The separate October 7 paired consumer checkpoint preserves four fresh idle
+original-lgpio/native Servo/DCMotor recordings with alternating order, all raw
+boundaries and anomalies, private ownership/cleanup receipts and independent
+audits. Original percent quantization and sampled handoff overlaps remain distinct
+from the draft's observations; no quantitative parity or actuator verdict follows.
+Its recovery archive also retains the independent method scripts and reproduces
+all four report facts after safe byte-checked extraction. See the dated README
+and `docs/draft-results.md`; earlier checkpoints remain immutable.
+
 Snapshot SHA256:
 `d052d0bbed06d6c0361cbb39b043814ef5c5fa4e633a698244c3487544a26ab0`.
 The archive is approximately 77 MB and is explicitly excluded from source

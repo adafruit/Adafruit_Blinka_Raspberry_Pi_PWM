@@ -2360,3 +2360,97 @@ audits are preserved, including the three genuine motor Python sources and ARM64
 native provenance. This is native-only functional-under-load evidence,
 not matched lgpio parity, electrical latency, calibrated deadtime, actuator
 qualification or an analog failsafe. Earlier archives remain unchanged.
+
+### Paired original-lgpio and native consumer-library idle recordings
+
+Four fresh passive-probe recordings run original → native, then native →
+original on the same Pi 5 GPIO18/ch0 and GPIO23/ch1, at 100 MSa/s with no glitch
+filter. The pre-capture plan SHA256 is
+`a4bf9e03fd8fd7d95f2dff9118108f046999272e63d95f7cc78d87caa3f80c7c`.
+The genuine motor 3.5.0 Servo/DCMotor calls and fifteen-phase dwell protocol
+are unchanged. Original Pin/PWMOut source and distro lgpio 0.2.2 are used without
+changing percent rounding or setters; scoped library hooks enforce/record
+private ownership. Native production, independent-worker mode and both disabled
+scheduler opt-ins are unchanged. No PIO, header PWM provider, priority, affinity,
+governor, fan or boot configuration is changed.
+
+Original duty 4914 at 50 Hz submits 7%, nominally 1400 µs; the draft preserves
+the u16 fraction, C-rounded to 1499.657 µs. Original Servo0/180 targets are
+1000/2000 µs versus native 999.771/1999.847 µs; motor-half targets are
+500 versus 499.992 µs. Duty/readback quantization is distinct from jitter.
+This is a temporary in-memory `pwmio` export, not an installed Blinka test or
+actual actuator qualification.
+
+| Descriptive complete pulse set | Original maximum absolute target error, r1 / r2 (µs) | Native maximum absolute target error, r1 / r2 (µs) |
+| --- | --- | --- |
+| Servo angle0 | 10.210 / 34.710 | 3.169 / 4.399 |
+| Servo angle90, different backend nominal widths | 0.740 / 1.180 | 1.397 / 1.617 |
+| Servo angle180 | 1.210 / 37.000 | 1.117 / 0.897 |
+| Motor forward-half | 8.960 / 1.620 | 2.318 / 2.222 |
+| Motor reverse-half, including original anomalies | 74.890 / 1.070 | 6.928 / 7.538 |
+
+These descriptive extrema use every complete pulse in the independent raw
+layout, not just qualified diagnostic fragments. Original reverse r1 retains
+425.110/551.170-µs highs; reverse periods span 924.450–1077.000 µs. Better repeat2
+does not erase them. Earlier native 27.077/26.092-µs consumer idle errors and the
+separate 330.018-µs loaded frequency-update event likewise remain unresolved.
+No baseline-derived quantitative acceptance thresholds or overall parity
+verdict are established by these four finite idle observations.
+
+Original recordings retain 822/704 GPIO18/23 edges, 411/352 complete highs,
+20/20/20 Servo pulses and 349/350 forward/reverse half pulses each. Native
+recordings retain 826/706 edges, 413/353 highs, 21/20/20 Servo pulses and 350/351
+motor pulses each. Counts are raw facts, not proof of omitted command cycles:
+receipt, host and Saleae clocks remain unaligned. Every low, adjacent rise,
+boundary and short/anomalous fragment is retained. No sampled sub-µs high or
+interior low is present in either backend.
+
+Both native records support the frozen whole-run ordered topology without
+ambiguity entries. Both original records withhold strict isolated full-extent
+association: GPIO23's first reverse rise precedes GPIO18's full-high fall by
+0.640/0.630 µs, a sampled both-high overlap outside the intentional brake.
+Native observations instead have 1.150/0.140-µs both-low gaps. These uncalibrated
+digital timestamps are not deadtime, electrical adoption latency or a motor
+driver safety qualification. The original r1 report retains its later candidate
+and all earlier fragments as ambiguity; it does not substitute that candidate
+for the complete reverse extent.
+
+Identification method differences remain explicit. The independent target-
+normalized ±10% bins split original r1 reverse pulses into 20/1 anomaly/3/1
+anomaly/325. The frozen original analyzer uses symmetric `math.isclose` relative
+tolerance 0.10, which includes 551.170 µs in the 500-µs bin; its blocks are 20/329,
+with 425.110 µs unmatched. Both retain identical raw widths and withhold complete
+isolated topology. Neither diagnostic convention is a timing pass threshold.
+
+All four actual helper SSH exits and local collection commands exit 0. Original
+receipts retain 78 nested completion-order events versus native 41 caller events;
+each has ten consumer actions, fifteen phase readbacks and three distinct
+output generations with independent privately owned low/read/release. Original
+public `deinit()` changes flags only: separate lab cancellation, low write,
+settled low/not-busy readback, line free and private chip close provide cleanup.
+Do not credit that cleanup to original public deinit. Native deinit performs its
+own low/release operation. Nonempty stderr containing local gRPC fork-child
+diagnostics is preserved, distinct from the Pi helper PIDs.
+
+The independent audit was frozen before report generation. All eight saved-SAL
+raw re-exports are byte-identical; all 248 combined hardware-free cases and
+scoped lint/format checks pass. Read-only postflight at 22:05:55 UTC confirms 104
+recorded PIDs absent, both pins unclaimed/output-low, 47.95°C, firmware flags 0,
+matching selected sources and unchanged boot/configuration/fan. Production and
+earlier archives remain unchanged; loaded paired comparison and the remaining
+validation gates are still required.
+
+The separate final-report audit finds zero mismatches in checked raw arrays,
+common statistics, receipt/source facts and conservative topology verdicts;
+the tolerance/fragment method difference above is preserved explicitly.
+Recovery archive
+`hardware-evaluation/2026-10-07/pi5-consumer-paired-evaluation.tar.gz`:
+1,133,753 bytes, SHA256
+`39937f59947c6560a73e2e86d4509b39932b3d7a5c878d316f5cfb7ff98e5c1f`.
+Fresh safe extraction byte-matches all 69 explicit top-level targets / 111 regular
+files. Isolated replay reproduces both original and both native report facts;
+only the verified absolute original plan location is relocated during comparison.
+All other hashes, raw arrays and receipt/report facts must match. Exact sources,
+tests, plans/manifests, SAL/raw channels, actual stderr, pre/postflight, selected
+native/consumer provenance, independent audits and their method scripts are
+preserved. See the dated recovery README; earlier checkpoints stay immutable.

@@ -214,6 +214,56 @@ Read the dated results and confirm fresh bench/source/ownership before any live
 helper use. Pi/Saleae clocks, threshold/driver skew and timebase remain
 uncalibrated; no electrical-latency, deadtime, parity or actuator guarantee follows.
 
+## Paired consumer-library idle checkpoint
+
+`pi5-consumer-paired-evaluation.tar.gz` preserves four fresh passive-probe Pi 5
+consumer recordings: original → native, then native → original. Archive:
+1,133,753 bytes; SHA256
+`39937f59947c6560a73e2e86d4509b39932b3d7a5c878d316f5cfb7ff98e5c1f`.
+All 69 explicit top-level targets / 111 regular files byte-match fresh safe
+extraction. Isolated replay reproduces all four report facts, normalizing only
+the verified relocated absolute original plan path; every other fact/hash matches.
+
+Original duty 4914 submits 7% at 50 Hz (1400 µs) versus the native u16 target
+1499.657 µs. Both original recordings retain a sampled 0.640/0.630-µs both-high
+direction handoff overlap and withhold whole-run isolated topology. Original r1
+retains 425.110/551.170-µs reverse highs and every fragment. Native handoffs have
+1.150/0.140-µs both-low gaps and identifiable complete ordered topology. These
+are uncalibrated digital facts, not deadtime or motor-safety qualification.
+
+The initial independent audit/notes remain immutable; all eight saved-SAL exports
+are byte-identical. The later final-report audit finds zero checked numeric/raw/
+receipt/scope mismatches. Target-centered ±10% versus symmetric `math.isclose`
+relative tolerance 0.10 produces different diagnostic reverse fragments for
+551.170 µs: independent 20/1 anomaly/3/1 anomaly/325 versus reported 20/329.
+Both preserve the same raw data and withhold complete original isolated topology;
+no later quiet candidate replaces the whole run. See `docs/draft-results.md`.
+
+The archive includes all four captures, source/test dependencies, frozen plans,
+21-source original and 18-source native manifests, actual collection/cleanup and
+state receipts, independent/final audits, and selected native/consumer provenance.
+`audit-source/` preserves four independent method scripts plus their initial and
+final receipt-check JSON; their original paths/output behavior need review before
+reuse. Original public deinit remains flags-only; explicit privately owned lab
+cancel/low/read/free/close is separate. All 248 combined hardware-free cases and
+scoped lint/format pass. Postflight records 104 PIDs absent, both pins free/output-
+low, 47.95°C / flags 0 and unchanged boot/configuration/fan. Nonempty local gRPC
+fork-child diagnostics remain preserved, distinct from Pi helper PIDs.
+
+From a fresh extraction with matching Python dependencies, offline report replay
+uses exclusive new filenames (CLI defaults differ):
+
+```console
+python analyze_lgpio_pwm_consumers.py oct7-pi5-lgpio-consumers-r1 oct7-pi5-lgpio-consumers-r2 --plan oct7-lgpio-consumers-plan.json --output replay.json
+python analyze_native_pwm_consumers.py oct7-pi5-native-consumers-paired-r1 oct7-pi5-native-consumers-paired-r2 --output-name replay.json
+```
+
+Do not rerun capture, state or checkpoint CLIs as offline replay. Capture helpers
+drive physical GPIO; state CLIs contact the original hosts; creators require fresh
+outputs and preserve original bench paths. Earlier native outliers remain
+unresolved; this idle functional pairing is not overall quantitative parity,
+installed Blinka/actuator compatibility or production-backend readiness.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
