@@ -169,6 +169,51 @@ against existing archives or execute hardware helpers without fresh
 bench/source/ownership checks. Production, Blinka and earlier archives remain
 unchanged; passive probes do not qualify a motor driver or physical actuator.
 
+## Native consumer-library loaded checkpoint
+
+`native-pi5-consumer-loaded-evaluation.tar.gz` preserves two further native-only
+passive consumer captures, each with two self-expiring ten-second CPU workers.
+Archive: 618,073 bytes; SHA256
+`a9fa9ecbfc185934a1a6dafd15132bbaa296c5a83ca9e8bfcedb5434ff52332e`.
+Fresh safe extraction byte-matches all 66 explicit top-level targets / 87 regular
+files; both waveform and both worker-overlap reports' JSON data replay exactly.
+
+The existing genuine motor 3.5.0 helper, collector, analyzer and strict whole-run
+identity plan remain unchanged. A narrow in-process coordinator checks the
+persisted launch, actual typed consumer/load SSH exits 0 and real worker
+bracketing of the entire helper and every phase. The raw-audit label
+`consumer_coordinator_exit` means `coordination.consumer_remote_returncode`, the
+actual consumer SSH exit, not an in-process collector or local CLI status.
+Each recording retains 826 GPIO18 / 706 GPIO23 edges and identifiable ordered
+topology without ambiguity entries.
+Every interval and nonempty stderr remains preserved, including host-local gRPC
+fork-child diagnostics distinct from Pi helper PIDs. This is not an installed
+Blinka/actuator test, CPU-saturation proof or matched lgpio comparison.
+
+The archive includes exact source dependencies, load/helper/coordination
+receipts, frozen plans/manifests, SAL/raw channels, pre/postflight and selected
+consumer/native provenance, including three exact genuine motor Python sources
+and the ARM64 native binary. All 105 combined hardware-free cases pass, with
+scoped lint and coordinator/state format checks clean. The independent raw audit
+is preserved before final-report comparison; the later
+`oct7-native-consumers-loaded-final-report-audit.json` finds no checked mismatches.
+All four saved-SAL re-exports are byte-identical. Different descriptive bins,
+low-summary boundary bases and additional statistics remain documented; the
+comparison checks common arrays/statistics and frozen boundary-inclusive sibling
+conditions. Earlier idle and loaded outliers stay separate, unresolved evidence.
+
+From a fresh extraction, offline waveform replay uses new output names:
+
+```console
+python analyze_native_pwm_consumers.py oct7-pi5-native-consumers-loaded-r1 oct7-pi5-native-consumers-loaded-r2 --output-name replay.json
+```
+
+The coordinator's `audit()` function rechecks saved worker/consumer receipts
+offline; its CLI performs hardware collection and must not be used for replay.
+Read the dated results and confirm fresh bench/source/ownership before any live
+helper use. Pi/Saleae clocks, threshold/driver skew and timebase remain
+uncalibrated; no electrical-latency, deadtime, parity or actuator guarantee follows.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API

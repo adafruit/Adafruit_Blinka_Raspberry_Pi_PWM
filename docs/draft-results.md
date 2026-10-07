@@ -2299,3 +2299,64 @@ selected-source provenance is not complete third-party build attestation.
 See the dated recovery README for offline replay. This native-only functional check does not establish
 matched performance parity, default-backend readiness, general consumer/actuator
 compatibility or an analog failsafe. Earlier evidence remains unchanged.
+
+### Native consumer-library under bounded CPU load
+
+Two further native-only passive-probe recordings retain the unchanged genuine
+motor 3.5.0 Servo/DCMotor helper, temporary virtual `pwmio` export, collector,
+analyzer and strict whole-run sibling-low identity rules above. No installed
+Blinka or actual actuator compatibility is established. The separate load plan
+is frozen before capture, SHA256
+`0a216d5da16a496315fbc0ea446bcb797e32c23b49ac37bc038683c89e93cf20`.
+The narrow `capture_native_pwm_consumers_loaded.py` coordinator validates the
+persisted launch before calling the frozen collector in-process, then checks
+actual typed consumer SSH exit 0 and load SSH exit 0. It does not invent a
+collector-process return code or treat launch as proof of workload coverage.
+
+Each recording has 826 GPIO18 / 706 GPIO23 edges, all 41 successful caller
+events, ten consumer actions, 15 matching phase readbacks and three fresh private
+owners with independent low/read/release. The unique ordered physical topology
+remains identifiable with no ambiguity entries; every edge, high, low, period,
+boundary and anomaly is retained. Identity bands are not timing acceptance.
+
+| Ordinary width target | Maximum absolute target-normalized high error, r1 / r2 (µs) |
+| --- | --- |
+| Servo angle0, 999.771 µs | 3.029 / 6.551 |
+| Servo angle90, 1499.657 µs | 1.137 / 0.747 |
+| Servo angle180, 1999.847 µs | 5.697 / 1.667 |
+| Motor forward-half, 499.992 µs | 3.132 / 1.122 |
+| Motor reverse-half, 499.992 µs | 8.228 / 6.818 |
+
+Both actual workers bracket the entire helper and every one of its 15 phases
+in each run. Worker durations are 10.000034376/10.000238265 seconds in r1 and
+10.000078803/10.000147767 seconds in r2; helper durations are
+3.825028484/3.821722282 seconds. Start/end bracketing margins span
+1.01769–1.03913 / 5.13588–5.16669 seconds. These Pi-clock receipts prove overlap,
+not CPU saturation or alignment to electrical timestamps. The earlier idle
+27.077/26.092-µs errors and the separate 330.018-µs loaded native frequency event
+remain unresolved, separate evidence; better finite samples are not guarantees.
+
+All 105 combined hardware-free cases pass, including 18 new coordinator cases;
+scoped lint and coordinator/state format checks are clean.
+Independent raw and worker reconstruction agrees with the checked final report
+facts; all four saved-SAL re-exports are byte-identical. Descriptive bins,
+low-summary boundary bases and additional statistics differ between methods;
+the preserved final audit checks common raw arrays, shared statistics and frozen
+boundary-inclusive sibling conditions without trimming. Preserved nonempty
+`remote.stderr` includes local gRPC fork-child diagnostics (host PIDs 363948/364626,
+not the distinct Pi helper PIDs); stderr is not erased or described as empty.
+The read-only postflight at 21:27:47 UTC confirms all 100 recorded PIDs absent,
+both pins unclaimed/output-low, 47.4°C / flags 0 and unchanged sources, boot/config
+and fan. Production and both disabled scheduler options remain unchanged.
+
+Recovery archive
+`hardware-evaluation/2026-10-07/native-pi5-consumer-loaded-evaluation.tar.gz`:
+618,073 bytes, SHA256
+`a9fa9ecbfc185934a1a6dafd15132bbaa296c5a83ca9e8bfcedb5434ff52332e`.
+Fresh safe extraction byte-matches all 66 explicit top-level targets / 87 regular
+files; both waveform and both worker-overlap reports' JSON data replay exactly.
+Exact sources, frozen plans/manifests, both captures, load receipts and independent
+audits are preserved, including the three genuine motor Python sources and ARM64
+native provenance. This is native-only functional-under-load evidence,
+not matched lgpio parity, electrical latency, calibrated deadtime, actuator
+qualification or an analog failsafe. Earlier archives remain unchanged.

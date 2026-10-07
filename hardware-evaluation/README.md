@@ -31,6 +31,13 @@ This does not prove installed Blinka, actual actuator operation, calibrated
 deadtime, electrical latency or performance parity. Recovery details are in
 the dated README; production remains unchanged.
 
+`2026-10-07/native-pi5-consumer-loaded-evaluation.tar.gz` adds two native-only
+passive-consumer recordings under two self-expiring ten-second CPU workers.
+Actual worker receipts bracket the entire helper and all 15 phases; overlap is
+not CPU saturation. Frozen strict topology rules and all raw intervals remain
+unchanged. Better finite widths do not erase the earlier idle errors or separate
+330-µs event, nor establish parity, actuator safety, latency or deadtime.
+
 The October 7 default-native 50-Hz update comparison is preserved separately in
 `2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
 It includes two new native captures, the two unchanged original-lgpio
