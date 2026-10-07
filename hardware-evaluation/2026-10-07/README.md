@@ -1,5 +1,52 @@
 # October 7 default-native Pi 5 comparison
 
+## Frequency/direct and matched loaded checkpoint
+
+`native-pi5-updates-loaded-evaluation.tar.gz` preserves four new idle native
+captures and twelve matched two-worker loaded captures (native/original,
+frequency/direct/half50, two repeats). Six unchanged original idle references
+are included. Source and Blinka remain unchanged; both native scheduler options
+stay off. See `docs/draft-results.md` for the complete interpretation.
+
+Archive: 877,956 bytes; SHA256:
+`61d4ecde5e58a26da15759f257ffc2bd5d869b3bf5b0be04e69e74629a70bafa`.
+Fresh safe extraction byte-matches all 127 explicit top-level targets, 273
+regular files. From that extraction, all sixteen new analysis reports, five
+paired comparisons and twelve load-overlap receipts reproduce exactly.
+
+The archive includes SAL/raw exports, actual exits/stdout/stderr, exact executed
+helpers/collectors/analyzers and their fake tests/dependencies, immutable plans
+and manifests, original source snapshots, the previously preserved native
+binary/source provenance, independent loaded audit and read-only postflight.
+The first original direct report's historical rounding error and corrected
+report are both retained. No older evidence is overwritten.
+
+Native timing is generally encouraging but not an on-par qualification:
+frequency-loaded repeat2 retains a 1829.98-µs high against its 1499.962-µs
+target (+330.018 µs) and shortened adjoining low. Native direct repeat1 retains
+a 978-µs half500 pulse. Endpoint hold durations/counts consistently differ from
+the original, and caller-return timing is not electrical application latency.
+Every anomaly and boundary remains in the evidence. All 24 actual workers
+bracket every phase and the whole PWM helper; this proves overlap, not CPU
+saturation. No sampled sub-µs lows were found in these finite recordings.
+The postflight confirms all 52 recorded PIDs absent and private pins released.
+
+Extract into a separate empty directory. Example offline replay with Saleae's
+Python package installed (new output names avoid overwriting evidence):
+
+```console
+python analyze_native_pwm_updates.py oct7-pi5-native-updates-frequency-loaded-r1 oct7-pi5-native-updates-frequency-loaded-r2 --baseline oct7-pi5-lgpio-updates-frequency-loaded-r1 oct7-pi5-lgpio-updates-frequency-loaded-r2 --output-name replay.json --comparison-output replay-frequency-loaded.json
+```
+
+`checkpoint_native_updates.py` documents the exact inspected targets and replay
+checks. Its archive-creation path is specific to the original sibling layout;
+do not rerun it against this already existing archive. Fake tests also require
+matching package source, recoverable from the included production-source tar.
+Do not run hardware helpers without a fresh bench/ownership/source check.
+GPIO23 was not driven in this checkpoint; electrical marker tests are later work.
+
+## Earlier half50 idle checkpoint
+
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
 GPIO18 recordings against the two unchanged original-lgpio `half50-direct`
 references. Both scheduler opt-ins remain disabled; no PIO or kernel PWM is

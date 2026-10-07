@@ -1,5 +1,13 @@
 # Hardware evaluation recovery snapshot
 
+The additional October 7 native frequency/direct and matched loaded matrix is
+preserved in `2026-10-07/native-pi5-updates-loaded-evaluation.tar.gz`, with four
+new idle captures and twelve loaded captures. Its directory README records
+byte/replay verification and recovery instructions. Most normalized timing is
+encouraging, but a retained 330-µs loaded high-pulse error and endpoint response
+differences still need investigation. No on-par/default-migration verdict or
+production change is implied.
+
 The October 7 default-native 50-Hz update comparison is preserved separately in
 `2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
 It includes two new native captures, the two unchanged original-lgpio

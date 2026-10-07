@@ -1919,3 +1919,108 @@ pass. Frequency-changing native API comparisons (with `variable_frequency=True`
 explicitly recorded), repeated loaded comparisons, electrical update-response
 bracketing and distinct-pin coexistence remain next. **Overall baseline parity
 and default-backend readiness remain unestablished; production is unchanged.**
+
+## Pi 5 native frequency/direct and matched loaded updates, October 7
+
+Four additional idle captures exercise the native public API with the exact
+original `frequency` and `direct` setter order and dwell sequences, twice each.
+Twelve fresh captures then compare both backends under the same fixed two-worker,
+ten-second CPU load: `frequency`, `direct`, and `half50-direct`, twice per backend.
+The first repetition runs original then native, the second native then original.
+No PIO, kernel PWM, affinity, governor, priority or fan change is made.
+Production source remains unchanged at `5dd0fd0` (native sources unchanged since
+`d5debaf`); the installed, previously preserved extension is not rebuilt.
+
+Native direct/frequency construction explicitly enables `variable_frequency`.
+The original retains its default `False` but nevertheless permits frequency
+writes. This is a recorded API difference, not a drop-in compatibility verdict.
+Both native scheduler options stay off; native half50 keeps the public default
+`variable_frequency=False`. All outputs use the verified RP1 controller/GPIO18.
+
+Before any new waveform, `oct7-native-updates-plan.json` freezes the sequences,
+targets, diagnostic rules and narrow idle-reference envelopes. SHA256:
+`f0850799856c0d20b54935d6d584c9e10e5f98642a23e24e9e35771d59990a9b`.
+Loaded runs retain those idle limits as flags, not loaded acceptance criteria.
+The old half50 plan is unchanged. No limits are relaxed after recording.
+
+Unlike original-lgpio's rounded integer-percent duty, native timing uses its
+rounded-nanosecond 16-bit target. At duty4915/50Hz those targets are respectively
+1400 and 1499.962 µs; at duty32768/500Hz they are 1000 and 1000.015 µs.
+The analyzer separately reports errors against the common requested 16-bit
+value. It retains every high, low and adjacent-rise interval; unmatched highs
+remain in nearest-stable-regime error statistics. Nearby possible intermediate
+widths are described separately, not treated as proof of a particular command.
+No edge is trimmed to improve a comparison.
+
+Idle frequency captures both have 466 edges and 21/191/20 ordinary pulses,
+plus one continuous-high run of 900.20069/900.19236 ms. Their only frozen flag
+is the extra initial pulse (21 rather than 20). Both idle direct captures have
+528 edges and 21/20/200/20 ordinary pulses plus three holds. Their first two
+holds are 281.65505/281.14566 ms and 281.65294/281.14754 ms, versus original
+301.29867/300.89860 ms and 301.88139/301.47738 ms. The requested dwell is 300 ms.
+Counts, total edges, those two hold durations and the recovery500 duty-setter
+caller duration are flagged. Native setters there take 11.907/11.444 µs versus
+the retained original per-scope maximum of 6.805 µs. Every idle normalized
+high/period/interior-low envelope is met; none of these four traces contains an
+unmatched high, nearby intermediate-width high or sampled sub-µs low.
+
+The following loaded maxima include anomalous nearest-regime highs. Period and
+low figures describe adjacent ordinary pulses within the same observed regime;
+all boundary intervals remain separately available in each report. These are
+worst observations across two short recordings, not distribution/tail guarantees.
+
+| Loaded mode / ordinary region | Original max absolute high / period / low error (µs) | Native max absolute high / period / low error (µs) |
+| --- | --- | --- |
+| Frequency / 50Hz duty4915 | 43.87 / 44.06 / 43.78 | 330.018 / 30.08 / 327.238 |
+| Frequency / 500Hz duty32768 | 1.57 / 2.89 / 2.93 | 12.715 / 0.91 / 11.805 |
+| Direct / 50Hz duty4915 | 47.73 / 48.55 / 47.93 | 5.312 / 3.52 / 4.032 |
+| Direct / 500Hz duty32768 | 46.52 / 49.57 / 46.17 | 22.015 / 22.41 / 22.875 |
+| Half50 / 50Hz duty32768 | 41.52 / 35.28 / 40.47 | 4.007 / 3.43 / 3.873 |
+
+The native frequency repeat2 has a concrete retained outlier: high pair227 is
+1829.98 µs, 330.018 µs above its native target; its adjoining low is 18172.80 µs,
+327.238 µs below target. That is worse than the original in this finite pair and
+flags the native high/low idle envelopes. Native direct repeat1 also retains a
+978.00-µs high (pair174, −22.015 µs), outside the diagnostic 2% bin but within
+the frozen error envelope. Original loaded captures also contain unmatched
+highs; their anomalies are included in the table rather than hidden by bins.
+No loaded recording contains a sampled sub-µs low or nearby intermediate-width
+high. Better typical results elsewhere do not dismiss the 330-µs outlier.
+
+Loaded direct native holds remain about 281.66/281.17 ms against original
+301.40/301.00 ms. Loaded half50 native holds are 290.17424/290.13865 ms against
+original 309.99920/309.99950 ms; ordinary counts remain 21/20 against 20/19.
+This agrees with the earlier observed boundary difference. The worker finishes
+the cached outgoing cycle's deadlines before adopting new configuration, but
+Pi phase clocks are not aligned to Saleae: these holds and fast caller returns
+do not measure command-to-electrical application delay. GPIO23 marker bracketing
+is the next measurement, not a claimed result of these captures.
+
+All twelve collectors, PWM helpers and fixed CPU-load helpers actually exit0.
+Raw worker-start/completion receipts independently confirm both workers bracket
+every phase and the entire PWM helper in all twelve runs, not just that launch
+succeeded. Worker durations are 10.000009791–10.000246195 seconds, with positive
+iteration counts. This establishes overlap, not whole-machine saturation or
+electrically aligned latency. Per-run temperatures are 47.95–53.45°C and all
+firmware throttling flags are zero. Cleanup receipts record owned low readback,
+private release and no primary/cleanup errors or signals. Original cancellation,
+low settling and release are additional bench safety, not original deinit behavior.
+
+The read-only postflight at 19:54:40 UTC confirms all 52 recorded PWM/load PIDs
+absent, GPIO18 unclaimed/output-low, GPIO23 unclaimed/input, unchanged boot ID
+and configuration SHA, only the separate fan PWM provider, and 46.85°C/flags0.
+Every SAL/raw edge and stdout/stderr receipt is preserved. Independent raw/ZIP
+and worker-receipt auditing agrees with the new reports; 456 hardware-free
+helper/collector/analyzer/load cases and scoped lint/format checks pass.
+
+Recovery archive details are recorded in
+`hardware-evaluation/2026-10-07/README.md`. Earlier archives, the historical
+rounding-error report and its corrected report remain unchanged. The checkpoint
+preserves exact executed scripts, tests, frozen plans/manifests, compiled native
+source/binary provenance, all new captures, unchanged original idle references,
+loaded overlap receipts, independent audit and postflight.
+
+These results justify continued evaluation, not a backend switch. The loaded
+outlier and endpoint-update response need investigation; longer matched timing,
+distinct-pin coexistence and wider board coverage remain. **Overall on-par
+behavior and default-backend readiness are unestablished; production is unchanged.**
