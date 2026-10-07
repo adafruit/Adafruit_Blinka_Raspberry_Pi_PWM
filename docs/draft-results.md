@@ -2147,3 +2147,77 @@ dependencies, frozen plan/manifest, selected-library hashes/versions, pre/postfl
 independent audit and preserved native binary/source provenance are included.
 Previous archives remain unchanged. Dual-output operation and independent
 shutdown/restart are next; production and Blinka remain unchanged.
+
+### Endpoint source comparison and native dual-output lifecycle
+
+The upstream lgpio v0.2.2
+[`xSetAsPwm` implementation](https://github.com/joan2937/lg/blob/b959a17d723360e85648316757b02dbea9902feb/lgGpio.c)
+queues changes for active PWM. Its
+[`lgPthTx` worker](https://raw.githubusercontent.com/joan2937/lg/v0.2.2/lgPthTx.c)
+consumes them at cycle start and keeps advancing its cycle schedule even at
+100% duty. Native instead waits on a condition at duty endpoints and rebases
+its cycle start on recovery; ordinary pulses still finish their cached cycle.
+These mechanisms are consistent with the marker observations, not proof that
+the distro binary was built from that upstream source. The installed wrapper
+reports 0.2.2.0 and binary hashes are retained, but distro build provenance is not.
+
+Using marker rises, the physical identity is
+`hold = marker gap + recovery-marker→fall − high-marker→rise`.
+In the first 50-Hz trial, original r1 gives
+120.09466 + 14.92134 − 13.61697 = 121.39903 ms; native r1 gives
+120.08957 + 1.51501 − 6.91542 = 114.68916 ms.
+The observed hold difference is thus accounted for without aligning Pi clocks
+or treating the first recovery fall as exact internal adoption latency.
+
+Two further native-only captures exercise simultaneous GPIO18/channel 0 and
+GPIO23/channel 1 PWM, independent endpoints, reciprocal 50/500-Hz frequency
+changes, release/restart of GPIO18, release of GPIO23 while GPIO18 continues,
+and final low cleanup. The frozen plan SHA256 is
+`462b3e808076e13c01b7553ff919b2f3f3333256b557b898091086ac0b068b68`.
+Thirteen phases have 3.3 seconds of fixed dwell plus three 0.1-second cleanup
+settles. Both scheduler options stay disabled; variable frequency is enabled.
+
+Both helpers and collectors exit 0. All 49 caller events succeed and all 13
+phase API readbacks match the declared sequence. The three output generations
+privately own only their pins, use distinct concurrent FDs 4/6, and reuse FD 4
+only after the first GPIO18 request is released. Each settles low, reads
+inactive through its owned request, and releases independently. Continuing
+sibling request identity and API settings remain unchanged across shutdown.
+These are receipt facts, not electrical generation labels or aligned phases.
+
+Both recordings contain 482 GPIO18 edges and 2020 GPIO23 edges, with every
+complete high, low and adjacent-rise interval retained. Unique GPIO18 low gaps
+of 468.07482/468.11342 ms contain 234 complete GPIO23 highs and 233 periods each.
+Their sibling periods span 1999.17–2000.94 µs / 1998.59–2001.47 µs.
+GPIO18 resumes an ordinary 50-Hz train; after GPIO23's final fall, GPIO18
+continues with ordinary then approximately 10-ms half-duty highs. Both channels
+start and end low and contain no sampled sub-µs interior lows.
+
+One r1 GPIO18 high, pair 143, is 1126.97 µs: +126.955 µs relative to its
+1000.015-µs half-500 target. It remains visible and breaks the diagnostic
+frequency-swap train into fragments. The revised analysis explicitly marks
+the full swap extent ambiguous; it does not widen the frozen ±10% identity
+bands or merge through that pulse. Initial reports and their exact analyzer
+snapshot are retained alongside revised reports. Neither report is a timing
+or parity acceptance decision; guarded physical windows can cover only part
+of a command phase, and Pi/Saleae clocks remain unaligned.
+
+The read-only postflight at 20:42:54 UTC confirms all 90 recorded PIDs absent,
+both pins unclaimed/output-low, unchanged boot/configuration and fan provider,
+48.5°C and firmware flags 0. A live consumer-library check is next. Production
+and Blinka remain unchanged; these finite native-only functional recordings
+do not establish matched performance parity or an analog failsafe.
+
+Independent reconstruction agrees with every raw edge and complete interval
+count. Loading only the two saved SALs and re-exporting their channels produces
+four byte-identical raw files, without live acquisition or GPIO activity.
+All 82 hardware-free helper/collector/analyzer cases pass. The exclusive archive
+`hardware-evaluation/2026-10-07/native-pi5-dual-lifecycle-evaluation.tar.gz`
+is 935,831 bytes, SHA256
+`89dc8dc8eadab4c75e75e92198c174df9c8b50717b1e894a0efcb80e9b957fb9`.
+Fresh safe extraction byte-matches 38 explicit targets / 59 regular files and
+reproduces all four initial/revised reports with their corresponding analyzers.
+It includes exact executed helpers, source manifests, pre/postflight receipts,
+raw channels/SALs, tests, independent audit and preserved native binary/source
+provenance. Selected third-party hashes are not complete third-party build
+provenance. Earlier archives remain unchanged.

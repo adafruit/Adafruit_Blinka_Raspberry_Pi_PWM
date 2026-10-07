@@ -18,6 +18,11 @@ setter-bracketing recordings. It retains every edge and explicitly ambiguous
 cases; physical marker-relative intervals are not exact adoption latency or
 an overall on-par verdict. Both pins release low and the fan remains unchanged.
 
+`2026-10-07/native-pi5-dual-lifecycle-evaluation.tar.gz` adds two simultaneous
+GPIO18/23 functional recordings with independent release/restart and sibling
+continuity. The retained wide pulse and partial-swap ambiguity are not hidden;
+this is not a matched performance-parity checkpoint.
+
 The October 7 default-native 50-Hz update comparison is preserved separately in
 `2026-10-07/native-pi5-half50-evaluation.tar.gz`; see its directory README.
 It includes two new native captures, the two unchanged original-lgpio

@@ -94,6 +94,37 @@ Selected third-party hashes/versions are retained, not all third-party binaries.
 The ARM64 native extension is evidence, not a macOS runtime. Hardware helpers
 drive both confirmed pins and require new bench/source/ownership verification.
 
+## Native dual-output checkpoint
+
+`native-pi5-dual-lifecycle-evaluation.tar.gz` preserves two native-only GPIO18/23
+functional recordings: independent endpoints, reciprocal frequency changes,
+separate shutdown and GPIO18 restart. It is 935,831 bytes; SHA256:
+`89dc8dc8eadab4c75e75e92198c174df9c8b50717b1e894a0efcb80e9b957fb9`.
+All 38 explicit targets / 59 regular files byte-match a fresh safe extraction,
+and all four initial/revised reports reproduce with their exact analyzers.
+
+GPIO18's roughly 468-ms low gaps contain 234 continuing GPIO23 pulses each;
+GPIO18 later continues after GPIO23 stops. Private per-generation ownership,
+separate low/read/release and sibling API identity are receipt evidence, not
+electrical phase or generation labels. An r1 1126.97-µs high remains retained
+with explicit full-swap-extent ambiguity. This is functional evidence, not
+matched performance parity. All edges and complete intervals remain available.
+
+Independent reconstruction agrees; offline re-export of both saved SALs gives
+four byte-identical raw channels. All 82 hardware-free cases pass. Both pins
+release low; cooling, boot/configuration and production remain unchanged.
+The archive includes ARM64 native binary/source provenance, not a macOS runtime
+or complete third-party build attestation. Read the dated results before use.
+
+Offline replay from a fresh extraction (requires Saleae's Python package):
+
+```console
+python analyze_native_pwm_dual.py oct7-pi5-native-dual-lifecycle-r1 oct7-pi5-native-dual-lifecycle-r2 --output-name replay.json
+```
+
+Do not rerun checkpoint creators against existing archives. Hardware helpers
+drive both confirmed pins and require fresh source/bench/ownership checks.
+
 ## Earlier half50 idle checkpoint
 
 `native-pi5-half50-evaluation.tar.gz` preserves two idle native public-API
