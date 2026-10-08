@@ -62,6 +62,30 @@ static unsigned writes(recording *r) {
     return count;
 }
 
+static uint64_t now_ns(void) {
+    struct timespec now;
+    assert(clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+    return (uint64_t)now.tv_sec * 1000000000ULL + (uint64_t)now.tv_nsec;
+}
+
+static void wait_for_error(pwm_engine *engine, int expected) {
+    uint64_t deadline = now_ns() + 1000000000ULL;
+    int result;
+    while ((result = pwm_check(engine)) == 0) {
+        assert(now_ns() < deadline);
+        pause_ms(1);
+    }
+    assert(result == expected);
+}
+
+static void wait_for_progress(recording *r, unsigned previous) {
+    uint64_t deadline = now_ns() + 1000000000ULL;
+    while (writes(r) <= previous) {
+        assert(now_ns() < deadline);
+        pause_ms(1);
+    }
+}
+
 int main(void) {
 #ifdef __linux__
     int original_slack = prctl(PR_GET_TIMERSLACK, 0UL, 0UL, 0UL, 0UL);
@@ -115,10 +139,13 @@ int main(void) {
     pthread_mutex_lock(&second.lock);
     second.failure = EIO;
     pthread_mutex_unlock(&second.lock);
-    pause_ms(30);
+    /* Check error isolation, not a 20 ms scheduling guarantee. A delayed shared
+     * worker can skip entire high windows without writing redundant LOWs. Wait
+     * for the error first, then require healthy progress within a bounded time. */
+    wait_for_error(b, EIO);
     unsigned healthy_count = writes(&first);
-    pause_ms(20);
-    assert(writes(&first) > healthy_count && pwm_check(a) == 0);
+    wait_for_progress(&first, healthy_count);
+    assert(pwm_check(a) == 0);
     assert(pwm_check(b) == EIO);
     assert(pwm_stop(b) == EIO);
     assert(pwm_stop(a) == 0 && pwm_stop(a) == 0);
