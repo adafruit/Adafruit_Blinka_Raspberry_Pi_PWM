@@ -1,12 +1,12 @@
 Introduction
 ============
 
-.. image:: https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm/actions/workflows/pip.yml/badge.svg
-    :target: https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm/actions/workflows/pip.yml
+.. image:: https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM/actions/workflows/pip.yml/badge.svg
+    :target: https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM/actions/workflows/pip.yml
     :alt: Build Status
 
-.. image:: https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm/actions/workflows/docs.yml/badge.svg
-    :target: https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm/actions/workflows/docs.yml
+.. image:: https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM/actions/workflows/docs.yml/badge.svg
+    :target: https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM/actions/workflows/docs.yml
     :alt: Documentation Build
 
 .. image:: https://img.shields.io/discord/327254708534116352.svg
@@ -43,8 +43,8 @@ environment:
 
 .. code-block:: shell
 
-    git clone https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm.git
-    cd adafruit_blinka_raspberry_pi_pwm
+    git clone https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM.git
+    cd Adafruit_Blinka_Raspberry_Pi_PWM
     python3 -m venv .venv
     source .venv/bin/activate
     python -m pip install .

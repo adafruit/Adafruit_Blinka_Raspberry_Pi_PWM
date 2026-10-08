@@ -25,9 +25,9 @@ docs = ["sphinx>=7,<9", "sphinx-rtd-theme>=2,<4"]
 dev = ["pre-commit>=4,<5", "ruff==0.16.10", "build>=1"]
 
 [project.urls]
-Homepage = "https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm"
-Source = "https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm"
-Issues = "https://github.com/makermelissa/adafruit_blinka_raspberry_pi_pwm/issues"
+Homepage = "https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM"
+Source = "https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM"
+Issues = "https://github.com/makermelissa/Adafruit_Blinka_Raspberry_Pi_PWM/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
