@@ -1,0 +1,22 @@
+{
+  "archive": "/Users/melissa/Documents/Codex/2026-08-07/ca/work/Adafruit_Blinka_Raspberry_Pi_PWM/hardware-evaluation/2026-10-08/pi4-installed-half50-evaluation.tar.gz",
+  "sha256": "d16aa13a04dc07093c851e70f3b00798a649994ba9078b5723222c9946907214",
+  "size_bytes": 1293131,
+  "archive_regular_files": 180,
+  "all_file_bytes_and_sizes_match_originals": true,
+  "embedded_manifest": "oct8-pi4-archive-file-manifest.json",
+  "embedded_manifest_sha256": "013d6e7278186161331f8abfe0a185cbe00428366c6758d36e0fdc73166cd8a4",
+  "references_verified_not_duplicated": {
+    "hardware-evaluation/2026-10-07/pi5-installed-blinka-consumer-evaluation.tar.gz": {
+      "sha256": "59f3b680d1420faa9a11dbd1925ab24583bec181a4a70b24742404f99bda4748",
+      "size_bytes": 6913796,
+      "scope": "Exact23 wheels, original/patched Blinka and unchanged native sources; never installed/extracted here."
+    },
+    "hardware-evaluation/2026-10-07/pi4-preparation-night-stop.tar.gz": {
+      "sha256": "ca9e1d23c230ff7585aaf92a8d8818f06e3949dfab533f60cd15a4d69a694ec1",
+      "size_bytes": 70905,
+      "scope": "Historical night-stop methods, bootstrap and backend source-policy snapshots; not a fresh bench-state proof."
+    }
+  },
+  "safe_tar_read_only_no_extraction_or_replay": true
+}

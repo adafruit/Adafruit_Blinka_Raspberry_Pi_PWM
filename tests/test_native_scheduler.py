@@ -28,7 +28,10 @@ def test_native_scheduler(tmp_path, shared):
             *(["-DPWM_TEST_SHARED"] if shared else []),
             "-I",
             str(root / "src/native"),
-            str(root / ("src/native/pwm_shared.c" if shared else "src/native/pwm_engine.c")),
+            str(
+                root
+                / ("src/native/pwm_shared.c" if shared else "src/native/pwm_engine.c")
+            ),
             str(root / "tests/native_engine_test.c"),
             "-o",
             str(executable),
@@ -61,7 +64,14 @@ def slice_executable(tmp_path_factory, request):
             "-pthread",
             "-I",
             str(root / "src/native"),
-            str(root / ("src/native/pwm_shared.c" if request.param else "src/native/pwm_engine.c")),
+            str(
+                root
+                / (
+                    "src/native/pwm_shared.c"
+                    if request.param
+                    else "src/native/pwm_engine.c"
+                )
+            ),
             str(root / "tests/native_slice_test.c"),
             "-o",
             str(executable),

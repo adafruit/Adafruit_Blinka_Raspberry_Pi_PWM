@@ -2651,3 +2651,48 @@ cleanup/state receipts, independent audits and the source diagnosis are retained
 See the dated README for recovery limitations. Earlier archives remain immutable;
 this is installed Pi 5 functional evidence, not overall parity or migration
 readiness. Warning-free documentation build also passes.
+
+## October 8: final installed Pi 4 fixed50 comparison
+
+Four declared idle original/native recordings complete on the Pi 4 bench, using
+real installed `board.D18`, unwrapped public PWMOut objects, GPIO18/channel2
+and untouched GPIO23/channel3. Frequency 50 Hz/duty 32768 is held for 3 seconds,
+with commanded LOW, public deinit and quiet observation. Both scheduler
+options are off; no CPU load, PIO, actuators or boot changes are introduced.
+Every complete interval and boundary remains in the reports and raw exports.
+
+| Run | Complete highs | Median high (µs) | Max absolute target error (µs) |
+| --- | ---: | ---: | ---: |
+| Original r1c | 149 | 10058.290 | 60.120 |
+| Native r1c | 151 | 9999.030 | 4.087 |
+| Native r2c | 151 | 9999.040 | 3.947 |
+| Original r2c | 149 | 10058.430 | 59.240 |
+
+Original target is 10000 µs after integer-percent rounding; native target is
+10000.153 µs after 16-bit duty/C rounding. Median periods are original
+20116.600/20116.860 µs and native 19999.980/19999.990 µs. All final helper/SSH
+exits are 0 and both channels begin/end LOW; control GPIO23 has zero edges.
+This supports more accurate native idle fixed50 timing, not overall parity.
+Earlier Pi 5 330.018-µs and 191.132-µs timing qualifications remain unresolved.
+Independent state-toggled binary decoding compares 7,041 retained report
+values (including earlier original-r1b) with zero differences and zero failed
+checks. No saved-SAL re-export or aligned-clock replay is claimed.
+
+Two test-helper failures, their exact sources and complete failed captures are
+preserved separately: output-LOW formatter rejection before half-duty start,
+then a release-verification exception after successful native public deinit.
+The corrected helper has 177 passing recording-only tests. Actual full pip
+check remains a retained failure on 17 unrelated inherited metadata requirements;
+the separate 26-active-requirement tested closure and 446-source runtime manifest
+are verified without claiming a clean whole environment or NeoPixel support.
+
+The final read-only check records LOW/unclaimed pins, no test workers,
+32.615°C and flags 0. See `hardware-evaluation/2026-10-08/README.md`
+for provenance, raw direction-query differences and byte-only archive recovery.
+Production PWM source is unchanged. This finishes the physical PWM sweep;
+focused gpiod/native-PWM integration and a resolvable release route are next.
+Recovery archive: 1,293,131 bytes, 180 regular files, SHA256
+`d16aa13a04dc07093c851e70f3b00798a649994ba9078b5723222c9946907214`.
+Every tar member byte-matches its original; previous source/wheel archives are
+verified hash references rather than duplicate payloads. No extraction or
+live-command replay was performed. Warning-as-error Sphinx build passes.

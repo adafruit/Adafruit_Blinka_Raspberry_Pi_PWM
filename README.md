@@ -9,8 +9,10 @@ Experimental CircuitPython-compatible `PWMOut` for Raspberry Pi, intended for
 use with Adafruit Blinka and existing CircuitPython libraries. The initial
 engine preserves arbitrary-pin software PWM with a native C scheduler.
 
-**This is an evaluation draft, not a Blinka backend replacement.** Physical
-waveform quality and performance have not been validated. See the
+**This is an evaluation draft, not a Blinka backend replacement.** Selected
+Pi 4 and Pi 5 bench measurements are preserved in the
+[recorded results](docs/draft-results.md), including timing outliers. They do not
+establish overall performance parity or validate every Raspberry Pi. See the
 [implementation notes](docs/design.md) and [validation gates](docs/validation.md).
 
 ## Dependencies

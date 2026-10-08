@@ -1,5 +1,12 @@
 # Hardware evaluation recovery snapshot
 
+The October 8 [Pi 4 installed-Blinka checkpoint](2026-10-08/README.md) completes
+the final four fixed-50-Hz original/native recordings and ends this physical
+PWM test sweep. It preserves every interval, both instrumentation failures and
+their source versions, and the final idle-state inspection. Its encouraging
+idle result does not erase the earlier Pi 5 timing outliers or establish overall
+default-backend parity. Production PWM source remains unchanged.
+
 The October 7 [night stopping point](2026-10-07/RESUME.md) preserves the installed
 Pi 5 checkpoint and unfinished Pi 4 preparation. No new Pi 4 GPIO capture was
 started; only isolated environment bootstrap completed. Its separate recovery
