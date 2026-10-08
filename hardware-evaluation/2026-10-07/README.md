@@ -1,5 +1,17 @@
 # October 7 default-native Pi 5 comparison
 
+## Night stopping point
+
+See [RESUME.md](RESUME.md) for the exact completed/pending state. The installed
+Pi 5 checkpoint is preserved; the next Pi 4 comparison has not been captured.
+`pi4-preparation-night-stop.tar.gz` saves 26 byte/hash-verified regular files
+(70,905 bytes; SHA256
+`ca9e1d23c230ff7585aaf92a8d8818f06e3949dfab533f60cd15a4d69a694ec1`).
+Only private Pi 4 environment bootstrap completed. Transfer, install, deployment
+and GPIO testing remain unstarted. The collector is explicitly unfinished;
+167 recording-only tests pass but broad lint and acquisition-proof gaps remain.
+This snapshot is not waveform evidence or a performance-parity result.
+
 ## Frequency/direct and matched loaded checkpoint
 
 `native-pi5-updates-loaded-evaluation.tar.gz` preserves four new idle native

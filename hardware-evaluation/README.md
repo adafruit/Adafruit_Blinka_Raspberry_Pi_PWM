@@ -1,5 +1,10 @@
 # Hardware evaluation recovery snapshot
 
+The October 7 [night stopping point](2026-10-07/RESUME.md) preserves the installed
+Pi 5 checkpoint and unfinished Pi 4 preparation. No new Pi 4 GPIO capture was
+started; only isolated environment bootstrap completed. Its separate recovery
+archive is preparation evidence, not a timing result or ready acquisition tool.
+
 The additional October 7 native frequency/direct and matched loaded matrix is
 preserved in `2026-10-07/native-pi5-updates-loaded-evaluation.tar.gz`, with four
 new idle captures and twelve loaded captures. Its directory README records
