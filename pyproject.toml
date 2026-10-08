@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "Adafruit-Blinka-Raspberry-Pi-PWM"
 version = "0.0.1.dev0"
-description = "Experimental CircuitPython-compatible Raspberry Pi software PWM backend"
+description = "Experimental CircuitPython-compatible Raspberry Pi PWM backends"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"

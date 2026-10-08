@@ -23,6 +23,8 @@ class FakeEngine:
 
     def configure(self, frequency, duty):
         self.check()
+        if not 1 <= frequency <= 10000:
+            raise ValueError("software frequency out of range")
         self.settings = (frequency, duty)
 
     def close(self):
@@ -153,3 +155,63 @@ def test_motor_dc_consumer():
         motor.throttle = -0.5
         motor.throttle = None
         assert first.duty_cycle == second.duty_cycle == 0
+
+
+def test_hardware_selection_and_backend_specific_frequency(monkeypatch):
+    route = object()
+
+    class Hardware(FakeEngine):
+        def configure(self, frequency, duty):
+            self.check()
+            self.settings = (frequency, duty)
+
+    monkeypatch.setattr(pwm, "discover", lambda pin: route)
+    monkeypatch.setattr(pwm, "HardwarePWM", Hardware)
+    with pwm.PWMOut(18, frequency=25000, variable_frequency=True) as output:
+        assert output._engine.pin is route
+        output.frequency = 20000
+        assert output.frequency == 20000
+
+
+def test_hardware_failure_does_not_fall_back(monkeypatch):
+    attempts = []
+
+    def hardware(*args):
+        attempts.append("hardware")
+        raise OSError(errno.EBUSY, "owned hardware channel")
+
+    monkeypatch.setattr(pwm, "discover", lambda pin: object())
+    monkeypatch.setattr(pwm, "HardwarePWM", hardware)
+    monkeypatch.setattr(pwm, "SoftwarePWM", lambda *args: attempts.append("software"))
+    with pytest.raises(OSError) as error:
+        pwm.PWMOut(18)
+    assert error.value.errno == errno.EBUSY
+    assert attempts == ["hardware"]
+
+
+def test_software_frequency_update_still_has_10khz_limit():
+    with pwm.PWMOut(23, variable_frequency=True) as output:
+        with pytest.raises(ValueError):
+            output.frequency = 10001
+        assert output.frequency == 500
+
+
+def test_failed_hardware_close_retains_owner_for_retry(monkeypatch):
+    class Hardware(FakeEngine):
+        def close(self):
+            if not getattr(self, "attempted", False):
+                self.attempted = True
+                raise OSError(errno.EIO, "failed low write")
+            self.closed = True
+
+    monkeypatch.setattr(pwm, "discover", lambda pin: object())
+    monkeypatch.setattr(pwm, "HardwarePWM", Hardware)
+    output = pwm.PWMOut(18)
+    owner = output._engine
+    with pytest.raises(OSError):
+        output.deinit()
+    assert output._engine is owner
+    assert not output.deinitialized
+    output.deinit()
+    assert output.deinitialized
+    output.deinit()

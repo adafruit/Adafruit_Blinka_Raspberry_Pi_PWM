@@ -7,7 +7,10 @@
 
 Experimental CircuitPython-compatible `PWMOut` for Raspberry Pi, intended for
 use with Adafruit Blinka and existing CircuitPython libraries. The initial
-engine preserves arbitrary-pin software PWM with a native C scheduler.
+software engine preserves arbitrary-pin PWM with a native C scheduler. A new
+BCM hardware draft prefers already-configured, independently routed header PWM
+channels on Pi 4 and earlier. Pi 5 currently retains software PWM; its dedicated
+non-PIO RP1 hardware path is separate unfinished work.
 
 **This is an evaluation draft, not a Blinka backend replacement.** Selected
 Pi 4 and Pi 5 bench measurements are preserved in the
@@ -38,6 +41,35 @@ python -m pip install .
 The examples using `board` and `adafruit_motor` additionally require
 `Adafruit-Blinka` and `adafruit-circuitpython-motor`. Installing this package does
 not change Blinka's PWM backend, device permissions, or boot configuration.
+
+## Hardware PWM draft
+
+Hardware selection requires an existing bound BCM2835 PWM driver and a default
+device-tree PWM route for the requested pin. GPIO12/18 share channel 0 and
+GPIO13/19 share channel 1; a channel routed to multiple physical pins is rejected
+to avoid driving an unexpected pin. No overlay is loaded automatically.
+Unconfigured pins use software PWM. Busy channels, permission failures and
+hardware startup errors are reported, not silently retried through GPIO.
+Hardware use also requires access to the provider's sysfs export controls and
+channel attributes; access to `/dev/gpiochip*` alone is not sufficient. A
+configured Pi 5 RP1 header route is currently refused, not taken over by software.
+
+Hardware frequency is limited by the controller/driver and integer-nanosecond
+period representation, not the software backend's 10-kHz limit. Sysfs updates
+are separate writes and are not promised to be glitch-free or atomic. No PIO is
+used. The new hardware implementation has not yet completed physical qualification;
+existing recorded software measurements do not validate this path.
+
+Only exports created by this instance are released. Sysfs exports are not
+file-descriptor leases: SIGKILL can leave PWM running, and unrelated sysfs writers
+are not isolated. Explicit `deinit()` reports cleanup errors and retains ownership
+for retry when release has not completed. A forked child never cleans up its
+parent's hardware output. Use deliberate bench validation before connecting
+actuators.
+
+Releasing a hardware channel does not restore its pin to GPIO mode. The kernel's
+configured PWM route remains active; changing that route is a separate system
+configuration step, not something `deinit()` performs.
 
 ## Usage example
 

@@ -7,6 +7,9 @@ This draft is for evaluation before any Blinka backend replacement.
 
 ## Current implementation
 
+- Hardware-first selection for already-configured, singly routed BCM header
+  channels on Pi 4 and earlier; the new sysfs backend remains physically
+  unqualified. Pi 5 currently uses the existing software engine.
 - CircuitPython constructor, 16-bit duty cycle, fixed or variable frequency,
   context managers, and explicit/idempotent `deinit()`.
 - Native C worker per output, using monotonic absolute deadlines and no Python
@@ -29,6 +32,38 @@ latency affect actual frequency, pulse width, and jitter. At high frequencies,
 late edges can shorten or eliminate pulses. There is no guarantee of 16-bit
 physical timing resolution. Matching or exceeding RPi.GPIO/lgpio is an acceptance
 criterion that still needs measurements, especially on Pi 1/Zero.
+
+### BCM hardware draft
+
+Selection proves a bound header PWM provider and its default pinctrl route;
+it does not guess `pwmchip0`, select the audio/fan controller, load overlays or
+change pin multiplexing. GPIO12/18 alias channel 0 and GPIO13/19 alias channel 1.
+Multiple routed pins on the selected channel are rejected rather than driven
+together. Missing hardware routes can use software; ambiguous, busy, permission
+or partially initialized hardware states cannot.
+An already-configured RP1 header route is refused until its hardware backend is
+implemented, so a software request cannot silently remux it. The separate Pi 5
+fan controller is not a header-output candidate.
+
+The selected engine stays fixed for the output's lifetime. Hardware accepts
+representable positive integer-Hz requests outside the software 1--10000-Hz
+range; the driver may reject requests its controller cannot implement. There
+is no guarantee of 16-bit physical duty resolution. Frequency and duty writes
+are non-atomic, with no artificial setter settling sleeps. Kernel cached state
+is not an electrical latch acknowledgement.
+
+Fresh sysfs exports establish channel exclusion but are not FD/crash-safe
+leases. A replacement export is not borrowed or cleaned up. Creator-PID guards
+run before locks or I/O, and unresolved cleanup owners remain available for
+retry. Explicit `deinit()` only forgets a hardware owner after release finishes.
+SIGKILL and unrelated noncooperating sysfs writers remain limitations. This is
+a new implementation requiring focused hardware qualification, not a relabeling
+of the earlier diagnostic prototypes or software timing results.
+
+Unexporting a hardware channel does not remove the provider's pinctrl route.
+On BCM controllers that route can prevent a subsequent GPIO request, even after
+`deinit()`. Returning the pin to GPIO mode requires deliberate system pinmux
+reconfiguration; this package does not unload overlays or alter other channels.
 
 An experimental scheduling opt-in is available before constructing outputs:
 
@@ -99,8 +134,9 @@ it with userspace software timing. A GPIO-v2 software fallback could add outputs
 where suitable lines are available. Each board needs explicit GPIO controller/
 line mapping, permissions/pinmux/ownership checks and waveform validation.
 Its `(pwmchip, channel)` mapping is not a `(gpiochip, line)` mapping. GPIOs claimed
-by an existing PWM driver must not be stolen for software output. Neither wider
-platform selection nor a kernel-PWM engine is implemented in this draft.
+by an existing PWM driver must not be stolen for software output. Wider
+platform selection is not implemented in this draft. The BCM-only hardware engine
+does not make these other boards supported.
 
 ## Install from this draft
 
@@ -141,14 +177,18 @@ its `id` is supported when the chip is a recognized Raspberry Pi controller.
 
 `frequency` is writable only with `variable_frequency=True`, as specified by
 CircuitPython. The existing Blinka implementations are more permissive; testing
-must identify applications relying on that difference before migration. Duty
-and frequency changes are queued for the next cycle boundary. At 1 Hz, that may
+must identify applications relying on that difference before migration. Software
+duty and frequency changes are queued for the next cycle boundary. At 1 Hz, that may
 take up to one second. Deinitialization interrupts waits immediately, joins the
-worker, drives low, and releases the line; it does not wait for a complete cycle.
+software worker, drives low, and releases the line; it does not wait for a complete
+cycle. Hardware writes and pinmux retention follow the separate rules above.
 
 The implementation does not import Blinka, avoiding a circular dependency.
-Blinka can expose this class directly as `pwmio.PWMOut`; see
-[the draft integration patch](blinka-integration.patch). Blinka is not
+[The original draft integration patch](blinka-integration.patch) illustrates
+direct exposure as `pwmio.PWMOut`, not a complete compatibility migration.
+The proposed [Blinka integration](https://github.com/adafruit/Adafruit_Blinka/pull/1122)
+uses an adapter to retain legacy frequency, `period`, and `enabled` behavior.
+Blinka is not
 modified or switched by installing this package. Existing RPi.GPIO pins may
 bypass character-device ownership, so never drive a pin through two backends
 simultaneously. Create PWM objects after starting multiprocessing children;
@@ -206,8 +246,9 @@ shared scheduler will improve our jitter. Preserve independent frequencies,
 interruptible updates/shutdown, per-output error reporting, and missed-period
 skipping when evaluating such a change.
 
-Evaluate non-PIO kernel hardware PWM and `pwm-gpio` as possible additional
-engines behind the same interface.
+The BCM-only hardware draft is a first additional engine behind the same
+interface. RP1 kernel hardware PWM and `pwm-gpio` remain separate candidates;
+`pwm-gpio` is not a hardware peripheral and must not be classified as one.
 Already-configured overlays should be reused; automatic setup, permissions,
 resource sharing, and cleanup need a separate design. Acceleration must preserve
 API behavior, ownership, independent frequencies, and requested pin coverage.

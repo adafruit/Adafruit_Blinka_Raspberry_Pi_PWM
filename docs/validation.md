@@ -25,8 +25,9 @@ Exercise defaults, duty 0/1/32767/65534/65535, fixed and variable frequency,
 invalid arguments, independent outputs, context-manager exit, repeat deinit,
 garbage collection, interpreter exit, signal exit, pin reuse, busy GPIOs,
 permission failures, and GPIO driver failures. Explicit deinit reports output
-errors. Abrupt process termination closes descriptors but cannot promise a final
-low transition; applications requiring a failsafe need appropriate circuitry.
+errors. Abrupt process termination cannot promise a final low transition;
+applications requiring a failsafe need appropriate circuitry. Software GPIO
+requests close with their descriptors; hardware sysfs exports can remain active.
 
 Use the actual Adafruit Motor Servo, ContinuousServo, DCMotor, and StepperMotor
 classes and simpleio tone helpers. Verify type annotations/imports through a
@@ -56,8 +57,10 @@ buffer loss and cannot prove high-frequency waveform quality.
 Compare RPi.GPIO and the draft on Pi 4, lgpio and the draft on Pi 5, using the
 same pin, operating system, CPU governor, load, and measurement equipment.
 Include 50 Hz servo pulses, 500 Hz, 1 kHz, 5 kHz, and 10 kHz, plus every higher
-frequency actually used by supported library examples. The initial draft rejects
-frequencies above 10 kHz; document any resulting compatibility gap.
+frequency actually used by supported library examples. The software engine rejects
+frequencies above 10 kHz; document any resulting compatibility gap. The BCM
+hardware draft delegates frequency limits to the controller/driver and must be
+qualified separately, including at frequencies above that software ceiling.
 
 Measure actual frequency error, pulse-width error, min/median/p95/p99/max jitter,
 duty/frequency update latency, CPU usage per output, skipped periods, and pin
@@ -72,7 +75,7 @@ are not identical to sequential frequency and duty updates. Explicit settling
 waits in a kernel prototype do not establish the native package's responsiveness,
 and a quick queued update is not proof of immediate electrical application.
 
-The default engine uses a native thread per output and GPIO ioctl per edge.
+The default software engine uses a native thread per output and GPIO ioctl per edge.
 The experimental `BLINKA_PWM_SHARED=1` engine shares a worker between outputs
 with the same scheduling opt-in, but still performs separate GPIO ioctls. Compare
 both engines with short-slice off and on, including independent retirement,
@@ -112,3 +115,11 @@ frequency/duty semantics and reject occupied channels. Test overlay availability
 privileged setup, reboot requirements, channel sharing, and pinmux restoration
 before allowing automatic selection. Do not silently select an engine with a
 smaller usable range or worse timing for a requested configuration.
+
+The BCM hardware draft still needs a focused physical gate: initial/repeated
+export, ordinary 50/500-Hz and above-10-kHz waveforms, exact 0%/100% duty, period
+shrinks and endpoint transitions, setter response, independent channels, and
+shutdown LOW. Confirm that malformed, occupied, fanout, or unsupported configured
+routes never fall through to software GPIO requests. `deinit()` releases a channel
+but does not restore GPIO pinmux; validate and document that compatibility boundary
+instead of treating the earlier software GPIO handoff tests as hardware evidence.

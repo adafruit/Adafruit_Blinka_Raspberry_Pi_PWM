@@ -66,6 +66,7 @@ class SoftwarePWM:
     def __init__(self, pin, frequency, duty_cycle):
         self._request = None
         self._handle = None
+        self.closed = False
         if sys.platform != "linux":
             raise RuntimeError("Raspberry Pi PWM requires Linux")
         try:
@@ -101,9 +102,12 @@ class SoftwarePWM:
             if self._request is not None:
                 self._request.release()
                 self._request = None
+            self.closed = True
             raise
 
     def configure(self, frequency, duty_cycle):
+        if not 1 <= frequency <= 10000:
+            raise ValueError("software PWM frequency must be between 1 and 10000 Hz")
         self._native.configure(self._handle, frequency, duty_cycle)
 
     def check(self):
@@ -118,3 +122,4 @@ class SoftwarePWM:
             if self._request is not None:
                 self._request.release()
                 self._request = None
+            self.closed = True

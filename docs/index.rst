@@ -1,7 +1,8 @@
 Adafruit Blinka Raspberry Pi PWM
 ================================
 
-Experimental CircuitPython-compatible software PWM for Raspberry Pi.
+Experimental CircuitPython-compatible PWM for Raspberry Pi: arbitrary-pin
+software output and a draft backend for configured BCM hardware channels.
 This draft does not replace Blinka's existing backend. Hardware waveform and
 performance validation are required before migration.
 

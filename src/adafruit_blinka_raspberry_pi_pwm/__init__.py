@@ -5,6 +5,7 @@ import atexit
 import operator
 import weakref
 
+from ._hardware import HardwarePWM, discover
 from ._software import SoftwarePWM
 
 __version__ = "0.0.1.dev0"
@@ -25,24 +26,34 @@ def _integer(value, name, minimum, maximum):
     return value
 
 
+def _engine_for(pin, frequency, duty_cycle):
+    """Choose once; a busy/failed hardware route is never a software fallback."""
+    route = discover(pin)
+    if route is not None:
+        return HardwarePWM(route, frequency, duty_cycle)
+    _integer(frequency, "frequency", 1, 10000)
+    return SoftwarePWM(pin, frequency, duty_cycle)
+
+
 class PWMOut:
     """PWM on a Blinka Pin or BCM GPIO number.
 
     Duty cycle has the CircuitPython 0..65535 range. Frequency is writable
-    only when variable_frequency=True. The initial software engine accepts
-    1..10000 Hz; this is a configuration range, not a timing guarantee.
+    only when variable_frequency=True. Already-configured BCM hardware PWM
+    is preferred; other pins use software PWM with a 1..10000 Hz configuration
+    range, not a timing guarantee. Hardware limits come from its controller.
     """
 
     def __init__(self, pin, *, duty_cycle=0, frequency=500, variable_frequency=False):
         self._engine = None
         duty_cycle = _integer(duty_cycle, "duty_cycle", 0, 65535)
-        frequency = _integer(frequency, "frequency", 1, 10000)
+        frequency = _integer(frequency, "frequency", 1, 1000000000)
         if not isinstance(variable_frequency, bool):
             raise TypeError("variable_frequency must be bool")
         self._variable_frequency = variable_frequency
         self._frequency = frequency
         self._duty_cycle = duty_cycle
-        self._engine = SoftwarePWM(pin, frequency, duty_cycle)
+        self._engine = _engine_for(pin, frequency, duty_cycle)
         _outputs.add(self)
 
     def _check(self):
@@ -76,19 +87,27 @@ class PWMOut:
             raise AttributeError(
                 "frequency is read-only unless variable_frequency=True"
             )
-        value = _integer(value, "frequency", 1, 10000)
+        value = _integer(value, "frequency", 1, 1000000000)
         self._engine.configure(value, self._duty_cycle)
         self._frequency = value
 
     def deinit(self):
-        """Stop the worker, drive low, and release the GPIO for reuse."""
+        """Stop output and release ownership, without changing hardware pinmux."""
         engine = self._engine
-        self._engine = None
         if engine is not None:
             try:
                 engine.close()
             finally:
-                _outputs.discard(self)
+                # Failed hardware cleanup can still own an export. Retain it
+                # for an explicit retry instead of abandoning the live output.
+                if getattr(engine, "closed", True):
+                    self._engine = None
+                    _outputs.discard(self)
+
+    @property
+    def deinitialized(self):
+        """Whether cleanup released the output; failed hardware close can retry."""
+        return self._engine is None
 
     def __enter__(self):
         self._check()
