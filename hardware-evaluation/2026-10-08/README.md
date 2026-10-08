@@ -93,7 +93,7 @@ separate empty directories. Do not execute saved SSH/setup/capture commands
 merely to recover files: host, boot and private `/tmp` identities can expire.
 
 The subsequent [focused Blinka integration](gpiod-integration.md) passes
-installed-wheel GPIO/pull/ownership checks on Pi 4 and Pi 5 and switches GPIO/PWM
+installed-wheel GPIO/pull/ownership checks on Pi 4, Pi 5 and Pi 3B+ and switches GPIO/PWM
 requirements together in draft PR1122. It is not another broad PWM sweep.
 A published dependency/install route and explicit legacy-API compatibility
 choices remain needed before merge; neither checkpoint publishes or merges them.

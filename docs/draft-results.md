@@ -2716,7 +2716,7 @@ settings-test failures reproduced on untouched HEAD. Source PWM remains unchange
 PR1122 remains draft: Melissa wants this repository transferred to Adafruit
 before finishing it. Transfer, project-URL updates and dependency publication
 remain pending, and the native 1--10 kHz
-range remains an explicit compatibility choice. Optional Pi 3 GPIO smoke adds
+range remains an explicit compatibility choice. Pi 3 GPIO smoke adds
 coverage but does not reopen the broad PWM test sweep.
 
 See `hardware-evaluation/2026-10-08/gpiod-integration.md` and its 52-file,
@@ -2724,3 +2724,18 @@ See `hardware-evaluation/2026-10-08/gpiod-integration.md` and its 52-file,
 `4f0c00640753a47e225449441f43f67264599ed7d669568fe65c251d1f3899fe`.
 All exact installed sources, methods, failed preparations and raw observations
 are retained. No extraction, saved-SAL replay, publication or merge is claimed.
+
+### Pi 3B+ follow-up
+
+The newly provisioned Pi 3B+ (Rev 1.4, ARM64, CPython 3.13.5) passes the same
+focused installed-wheel GPIO18/23 pull/output/reclaim/independent-ownership and
+zero-duty PWM/EBUSY handoff checks. Actual helper exit is 0 with no cleanup errors.
+Both pins are LOW/unclaimed afterward; no helper remains, boot/config/source
+identities are unchanged, and postflight temperature is 34.862°C with flags 0.
+The isolated 16-wheel venv has a genuinely passing pip check; this does not
+relabel older inherited-environment failures. Thirty-two recording tests pass.
+The first verifier's utility-script relocation error remains preserved separately.
+No analyzer or nonzero-duty PWM was used: this is physical GPIO functionality,
+not Pi 3 timing evidence or a repeat of the older 32-bit build/API coverage.
+See the Pi 3 subsection of the focused integration report for exact provenance
+and the separate byte-verified recovery archive.

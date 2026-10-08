@@ -45,6 +45,34 @@ unchanged boot identity and throttle flags 0. Pi 4 temperature is 32.615°C and
 Pi 5 is 46.850°C. Pi 4's remote stderr retains local capture-client gRPC/fork
 logging; it did not prevent actual SSH/helper completion.
 
+## Pi 3B+ follow-up
+
+The short smoke also passes on a newly provisioned Raspberry Pi 3 Model B Plus
+Rev 1.4 (`test-pi3`), with ARM64 userland, CPython 3.13.5 and Linux
+6.18.50+rpt-rpi-v8. This is separate from the earlier 32-bit build/API tests.
+An isolated private venv installs 16 frozen cached wheels without system-site
+packages or distro changes. Actual pip install and `pip check` both exit 0;
+547 installed site sources byte-match their wheels. Four relocated pyftdi
+utility-script payloads match after the expected pip shebang rewrite.
+
+Genuine Pi 3/BCM283x dispatch and installed origins pass before claiming any
+line. GPIO18/23 then pass UP/DOWN/disabled-bias input checks, LOW/HIGH/LOW
+public readback, repeated release/reclaim, independent ownership and native
+zero-duty 50-Hz PWM/EBUSY handoff. The helper exits 0 with 66 recorded events,
+no cleanup errors and empty stderr. The no-pull voltage is not an acceptance
+criterion. No analyzer was used, no nonzero-duty PWM was requested, and
+this adds no waveform, timing or parity evidence. Final read-only postflight
+confirms both pins OUTPUT LOW/unclaimed, no helper, unchanged source/boot/config
+identity, 34.862°C and `throttled=0x0`.
+
+The initial wheel verifier exits 1 after successful installation because it
+looked for relocated utility scripts under site-packages; no GPIO helper ran
+then. Its exact failed method/logs remain separate. Corrected verification
+reuses the successful installation without reinstalling. Thirty-two recording
+tests and scoped E4/E7/E9/F lint pass; the broader lab Ruff run retains three
+intentional broad-catch cleanup warnings and one import-alias style warning.
+Measured methods are not reformatted afterward.
+
 ## Fixes and retained rejected preparation
 
 Pi-only GPIO regressions cover preserving a commanded HIGH when DigitalInOut
@@ -66,8 +94,8 @@ the native 1--10,000-Hz configuration range. Higher-frequency compatibility is
 still a user decision. The dependency is not published to PyPI, so PR1122 stays
 draft. Melissa wants the PWM repository transferred to Adafruit before finishing
 PR1122; transfer, project-URL updates and publication remain pending.
-Optional Pi 3B+ GPIO smoke would add real BCM283x coverage; prior Pi 3
-32-bit native build tests are not a physical GPIO check. No new broad matrix,
+The Pi 3B+ smoke adds real BCM283x GPIO coverage; prior Pi 3
+32-bit native build tests remain distinct. No new broad matrix,
 publication, merge, PIO, boot or permission changes are implied.
 
 ## Recovery
@@ -81,3 +109,15 @@ see `gpiod-integration-archive-verification.json`. No extraction or live replay
 was performed. Restore only into a fresh directory; do not execute saved GPIO
 commands merely to recover evidence. Private /tmp paths and boot identities
 are session-specific. Earlier PWM archives and timing qualifications are unchanged.
+
+The separate Pi 3 checkpoint `pi3-gpiod-blinka-smoke.tar.gz` contains 28 regular
+files, 195,986 bytes, SHA256
+`66bada18fe8409528eab0c645b2af96dda75b546c7d51531c052a869e0989aff`.
+It retains the exact failed/corrected preparation methods, actual installation
+and command-completion receipts, full import/hardware reports, postflight,
+32-test output, scoped/broad lint outputs and independent saved-receipt audit.
+All members byte-match their sources; see `pi3-gpiod-archive-verification.json`.
+Sixteen wheel payloads are byte-verified references to the earlier Pi 5
+installed-consumer and Pi 4/Pi 5 integration archives, not duplicated here.
+No extraction or GPIO replay was performed. Restore only into fresh directories;
+the new Pi 3 private paths and boot identity are also session-specific.
