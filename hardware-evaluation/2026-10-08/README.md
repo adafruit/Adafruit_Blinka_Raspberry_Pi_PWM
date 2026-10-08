@@ -92,9 +92,8 @@ The prior night-stop archive also remains immutable. Restore archives into
 separate empty directories. Do not execute saved SSH/setup/capture commands
 merely to recover files: host, boot and private `/tmp` identities can expire.
 
-The next work is focused Blinka integration and package-release preparation,
-not another broad physical PWM sweep. Reuse Blinka's existing gpiod backend,
-preserve integer BCM pin IDs for consumers, resolve the actual header chip,
-and switch GPIO/PWM requirements together. A published dependency/install
-route and explicit legacy-API compatibility choices remain needed before
-changing Blinka's default; this checkpoint neither publishes nor merges them.
+The subsequent [focused Blinka integration](gpiod-integration.md) passes
+installed-wheel GPIO/pull/ownership checks on Pi 4 and Pi 5 and switches GPIO/PWM
+requirements together in draft PR1122. It is not another broad PWM sweep.
+A published dependency/install route and explicit legacy-API compatibility
+choices remain needed before merge; neither checkpoint publishes or merges them.

@@ -1,5 +1,12 @@
 # Hardware evaluation recovery snapshot
 
+The subsequent October 8 [focused Blinka integration](2026-10-08/gpiod-integration.md)
+passes installed-wheel GPIO/pull/ownership checks on Pi 4 and Pi 5, with raw
+passive-probe traces and LOW/free postflight. It preserves a rejected no-claim
+alias-discovery preparation separately. Blinka PR1122 is pushed with passing
+CI but remains draft pending a published PWM dependency and compatibility
+decisions. Production PWM is unchanged; no new timing sweep or parity claim.
+
 The October 8 [Pi 4 installed-Blinka checkpoint](2026-10-08/README.md) completes
 the final four fixed-50-Hz original/native recordings and ends this physical
 PWM test sweep. It preserves every interval, both instrumentation failures and

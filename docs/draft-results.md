@@ -2696,3 +2696,31 @@ Recovery archive: 1,293,131 bytes, 180 regular files, SHA256
 Every tar member byte-matches its original; previous source/wheel archives are
 verified hash references rather than duplicate payloads. No extraction or
 live-command replay was performed. Warning-as-error Sphinx build passes.
+
+## October 8: focused Blinka integration
+
+Blinka draft PR1122 commit `f3fdc2c` selects gpiod GPIO plus native PWM together,
+preserving integer BCM IDs, independent ownership and legacy writable PWM
+frequency/period/enabled behavior through small adapters. The installed dev77
+evaluation wheel passes finite GPIO18/23 pull, output, release/reclaim and
+zero-duty PWM/EBUSY handoff checks on both Pi 4 and Pi 5. All four raw channels
+start/end LOW and contain four edges/two HIGH holds. Postflight pins are LOW
+and unclaimed; throttle flags are 0 and no helper remains. These are GPIO
+functional observations, not new PWM timing, overall parity or actuator evidence.
+
+Pi-only output-state/bias regressions and canonical gpiochip alias discovery
+are fixed. Both earlier no-claim dev76 preparation rejections remain preserved,
+not relabeled. 113 focused Blinka tests and 17 recording-only helper tests pass;
+Black/Pylint, Sphinx-W and PR CI pass. The broad suite retains two unrelated
+settings-test failures reproduced on untouched HEAD. Source PWM remains unchanged.
+PR1122 remains draft: Melissa wants this repository transferred to Adafruit
+before finishing it. Transfer, project-URL updates and dependency publication
+remain pending, and the native 1--10 kHz
+range remains an explicit compatibility choice. Optional Pi 3 GPIO smoke adds
+coverage but does not reopen the broad PWM test sweep.
+
+See `hardware-evaluation/2026-10-08/gpiod-integration.md` and its 52-file,
+2,748,949-byte byte-verified archive, SHA256
+`4f0c00640753a47e225449441f43f67264599ed7d669568fe65c251d1f3899fe`.
+All exact installed sources, methods, failed preparations and raw observations
+are retained. No extraction, saved-SAL replay, publication or merge is claimed.
