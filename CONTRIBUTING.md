@@ -1,10 +1,7 @@
 # Contributing
 
-This package is experimental. Preserve the CircuitPython-facing API and the
-arbitrary-pin software engine while evaluating additional engines. Report
-issues and propose changes through this repository's GitHub issues and pull
-requests. Please follow the
-[Adafruit Community Code of Conduct](https://github.com/adafruit/Adafruit_Blinka/blob/main/CODE_OF_CONDUCT.md).
+Contributions are welcome. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md)
+and use GitHub issues and pull requests for bug reports and proposed changes.
 
 ## Development setup
 
@@ -18,7 +15,7 @@ pre-commit install
 The repository uses `src/adafruit_blinka_raspberry_pi_pwm/` for the Python
 package, `src/native/` for its C extension and scheduler, `examples/` for runnable
 hardware examples, `tests/` for automated checks, and `docs/` for Sphinx sources
-and evaluation records. Native sources ship in the source distribution, not as
+for user documentation. Native sources ship in the source distribution, not as
 a separate Python package.
 
 ## Checks before proposing a change
@@ -36,9 +33,9 @@ tests. No automated test requests physical GPIO lines.
 
 ## Hardware validation
 
-Use [the validation plan](docs/validation.md) before driving a pin or claiming
+Read [the usage guide](docs/usage.rst) before driving a pin or claiming
 performance improvements. Record board, OS/kernel, architecture, Python and
 dependency versions, wiring, load, and measurement equipment with results.
 Do not use interrupt-timestamp loopback tests as proof of waveform quality.
-Blinka integration and publishing releases remain separate steps from drafting
-or reorganizing this package.
+Preserve the CircuitPython API, independent output ownership, and software
+fallback when changing backends. Document any new timing or platform limitations.

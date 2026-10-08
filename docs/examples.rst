@@ -33,7 +33,7 @@ Join two free GPIOs with a jumper. Choose both pins explicitly:
    python examples/pwm_loopback.py --output 18 --input 23 --frequency 500 --backend draft
 
 Repeat with ``--backend blinka`` to compare with an unchanged Blinka install.
-Read :doc:`validation` first: interrupt timestamps are only a smoke test.
+Read :doc:`usage` first: interrupt timestamps are only a smoke test.
 
 .. literalinclude:: ../examples/pwm_loopback.py
    :language: python

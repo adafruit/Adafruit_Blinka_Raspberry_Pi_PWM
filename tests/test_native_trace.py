@@ -221,7 +221,7 @@ def trace_executable(tmp_path_factory):
             "-Wextra",
             "-Werror",
             "-pthread",
-            str(root / "tools/native_trace.c"),
+            str(root / "tests/native_trace.c"),
             str(driver),
             "-o",
             str(executable),

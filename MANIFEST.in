@@ -1,8 +1,6 @@
-include LICENSE README.md CONTRIBUTING.md .pre-commit-config.yaml .readthedocs.yaml
-include tools/native_trace.c tools/build_trace.py tools/README.md
+include LICENSE README.rst CONTRIBUTING.md CODE_OF_CONDUCT.md .pre-commit-config.yaml .readthedocs.yaml
 recursive-include src/native *.c *.h
 recursive-include tests *.c *.py
 recursive-include examples *.py
-recursive-include docs *.md *.rst *.py *.txt *.patch Makefile
+recursive-include docs *.rst *.py *.txt Makefile
 prune docs/_build
-prune hardware-evaluation
