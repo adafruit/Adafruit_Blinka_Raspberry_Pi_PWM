@@ -112,6 +112,16 @@ Hardware tests are opt-in and must be wired deliberately; the automated test
 suite does not drive GPIOs. [Recorded results](docs/draft-results.md) distinguish
 API/build tests from physical waveform testing.
 
+## AI-assisted development
+
+Development of this draft has used substantial AI assistance from OpenAI Codex
+for implementation, automated tests, documentation, hardware-test tooling, and
+analysis of bench measurements. AI assistance does not replace human review or
+physical validation. The [recorded results](docs/draft-results.md) distinguish
+automated checks from measured hardware behavior and document remaining
+limitations; AI-generated code or reviews alone are not evidence of correctness,
+timing, safety, or compatibility.
+
 ## License
 
 Original code is [MIT licensed](LICENSE). No RPi.GPIO source has been copied or
