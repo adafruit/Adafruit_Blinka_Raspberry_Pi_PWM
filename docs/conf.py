@@ -4,7 +4,7 @@ from importlib import metadata
 
 project = "Adafruit Blinka Raspberry Pi PWM"
 author = "Melissa LeBlanc-Williams"
-copyright = "2026 Melissa LeBlanc-Williams"
+copyright = "2026 Melissa LeBlanc-Williams for Adafruit Industries"
 release = metadata.version("Adafruit-Blinka-Raspberry-Pi-PWM")
 version = release
 extensions = ["sphinx.ext.autodoc", "sphinx.ext.napoleon", "myst_parser"]
