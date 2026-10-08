@@ -1,5 +1,13 @@
 # Hardware evaluation recovery snapshot
 
+October 8 configured BCM/RP1 production-package support and ten focused Pi 4/Pi 5
+GPIO18 hardware captures are preserved in
+`2026-10-08/configured-hardware-package-evaluation.tar.gz`. This is an additional
+hardware path, not a rewrite of the older software/prototype evidence. All steady
+groups pass; Pi 4 HIGH frequency transitions retain LOW gaps and ambiguous
+aggregate mapping. Read the final section of `docs/draft-results.md` and the
+archive's byte-verification receipt before using it as qualification evidence.
+
 The subsequent October 8 [focused Blinka integration](2026-10-08/gpiod-integration.md)
 passes installed-wheel GPIO/pull/ownership checks on Pi 4 and Pi 5, with raw
 passive-probe traces and LOW/free postflight. It preserves a rejected no-claim

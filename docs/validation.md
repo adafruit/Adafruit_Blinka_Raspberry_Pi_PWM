@@ -58,7 +58,7 @@ Compare RPi.GPIO and the draft on Pi 4, lgpio and the draft on Pi 5, using the
 same pin, operating system, CPU governor, load, and measurement equipment.
 Include 50 Hz servo pulses, 500 Hz, 1 kHz, 5 kHz, and 10 kHz, plus every higher
 frequency actually used by supported library examples. The software engine rejects
-frequencies above 10 kHz; document any resulting compatibility gap. The BCM
+frequencies above 10 kHz; document any resulting compatibility gap. The configured
 hardware draft delegates frequency limits to the controller/driver and must be
 qualified separately, including at frequencies above that software ceiling.
 
@@ -116,10 +116,14 @@ privileged setup, reboot requirements, channel sharing, and pinmux restoration
 before allowing automatic selection. Do not silently select an engine with a
 smaller usable range or worse timing for a requested configuration.
 
-The BCM hardware draft still needs a focused physical gate: initial/repeated
+The BCM/RP1 hardware draft still needs a focused physical gate: initial/repeated
 export, ordinary 50/500-Hz and above-10-kHz waveforms, exact 0%/100% duty, period
 shrinks and endpoint transitions, setter response, independent channels, and
 shutdown LOW. Confirm that malformed, occupied, fanout, or unsupported configured
 routes never fall through to software GPIO requests. `deinit()` releases a channel
 but does not restore GPIO pinmux; validate and document that compatibility boundary
 instead of treating the earlier software GPIO handoff tests as hardware evidence.
+On RP1, inspect steady HIGH at high sample rate for full-duty notches, retain
+shortened update-boundary pulses, and verify shutdown from inverse-zero HIGH.
+Check the actual PWM clock against its device-tree assignment and leave the
+separate cooling-fan provider untouched.

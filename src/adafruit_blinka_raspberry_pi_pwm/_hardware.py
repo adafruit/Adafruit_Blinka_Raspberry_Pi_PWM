@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""Bound, preconfigured BCM header PWM, without changing overlays or pinmux.
+"""Bound, preconfigured BCM/RP1 header PWM, without changing overlays or pinmux.
 
 Sysfs exports are global state, not crash-safe file-descriptor leases. The
 captured directory identity detects replacement exports, but cannot exclude
 noncooperating sysfs writers. Readbacks describe cached requests, not measured
 electrical state. Scalar configuration updates may produce transient glitches.
-RP1 is guarded against software remux, not implemented. PIO, software PWM
-providers, and audio controllers are not supported here.
+RP1 HIGH uses inverse-zero, not the driver's notched normal-full duty. Its
+clock metadata is an OF request, not a measured or guaranteed runtime rate.
+PIO, software PWM providers, fan and audio controllers are not supported here.
 """
 
 import atexit
@@ -24,7 +25,10 @@ from ._software import _pin_id
 SYSFS_PWM = Path("/sys/class/pwm")
 DEVICE_TREE = Path("/sys/firmware/devicetree/base")
 EXPORT_READY_SECONDS = 1.0
+RP1_CLEANUP_GUARD_SECONDS = 0.001
+RP1_MAX_PERIOD_NS = 1_000_000_000  # The public minimum frequency is 1 Hz.
 _CHANNELS = {12: 0, 13: 1, 18: 0, 19: 1}
+_RP1_CHANNELS = {12: 0, 13: 1, 14: 2, 15: 3, 18: 2, 19: 3}
 _RP1_PINS = {12: "alt0", 13: "alt0", 14: "alt0", 15: "alt0", 18: "alt3", 19: "alt3"}
 _RP1_LEGACY = {12: 4, 13: 4, 18: 2, 19: 2}
 # Include non-header aliases when checking for unintended electrical fanout.
@@ -61,7 +65,7 @@ class HardwareError(RuntimeError):
 
 @dataclass(frozen=True)
 class Route:
-    """A proven default pinctrl route on the bound BCM header controller."""
+    """A default pinctrl route and, for RP1, requested (not measured) clock."""
 
     gpio: int
     chip: Path
@@ -69,6 +73,10 @@ class Route:
     channel: int
     gpio_node: Path
     pinctrl_nodes: tuple
+    controller: str = "bcm"
+    clock_rate_hz: int = None
+    clock_node: Path = None
+    clock_id: int = None
 
     @property
     def path(self):
@@ -105,13 +113,13 @@ def _phandle_nodes(root, handles):
             if values[0] in matches:
                 matches[values[0]].add(prop.parent)
     if any(len(nodes) != 1 for nodes in matches.values()):
-        raise HardwareError("Missing or ambiguous default pinctrl phandle")
+        raise HardwareError("Missing or ambiguous OF phandle")
     nodes = tuple(next(iter(matches[handle])) for handle in handles)
     for node, handle in zip(nodes, handles):
         for name in ("phandle", "linux,phandle"):
             prop = node / name
             if prop.exists() and _cells(prop) != (handle,):
-                raise HardwareError("Inconsistent default pinctrl phandle aliases")
+                raise HardwareError("Inconsistent OF phandle aliases")
     return nodes
 
 
@@ -238,30 +246,127 @@ def _default_functions(node, root, rp1=False):
     return routes, next(iter(gpio_nodes)), groups
 
 
-def _default_route(chip, node, gpio, root):
-    configured = _default_functions(node, root)
+def _rp1_mux(pin, function):
+    return pin in _RP1_CHANNELS and (
+        function in ("pwm0", _RP1_PINS[pin])
+        or (pin in _RP1_LEGACY and function == _RP1_LEGACY[pin])
+    )
+
+
+def _clock_references(path, root):
+    """Parse OF clock specifiers, including zero assignment placeholders."""
+    values, references, offset = _cells(path), [], 0
+    while offset < len(values):
+        handle = values[offset]
+        offset += 1
+        if handle == 0:
+            references.append(None)
+            continue
+        provider = _phandle_nodes(root, (handle,))[0]
+        count = _cells(provider / "#clock-cells")
+        if len(count) != 1 or count[0] > len(values) - offset:
+            raise HardwareError(f"Malformed clock specifier: {path}")
+        references.append((provider, values[offset : offset + count[0]]))
+        offset += count[0]
+    return tuple(references)
+
+
+def _rp1_clock(node, root):
+    """Accept the explicit header PWM0 clock assignment only, not a rate guess.
+
+    CCF assignments can fail or be changed by another consumer after discovery.
+    This proves the DT request's identity, not its successful/current frequency.
+    """
+    try:
+        clocks = _clock_references(node / "clocks", root)
+        assigned = _clock_references(node / "assigned-clocks", root)
+        rates = _cells(node / "assigned-clock-rates")
+        if any(
+            (node / name).exists()
+            for name in (
+                "assigned-clock-parents",
+                "assigned-clock-rates-u64",
+                "assigned-clock-sscs",
+            )
+        ):
+            raise HardwareError("Unsupported RP1 clock assignment metadata")
+        if len(clocks) != 1 or clocks[0] is None or assigned != clocks:
+            raise HardwareError("RP1 needs one matching assigned PWM0 clock")
+        provider, arguments = clocks[0]
+        if (
+            provider.name != "clocks@18000"
+            or provider.parent != node.parent
+            or "raspberrypi,rp1-clocks" not in _strings(provider / "compatible")
+            or _cells(provider / "#clock-cells") != (1,)
+            or arguments != (17,)  # dt-bindings/clock/rp1.h: RP1_CLK_PWM0.
+            or len(rates) != 1
+            or rates[0] == 0
+        ):
+            raise HardwareError("Unproven RP1 PWM0 clock identity or assigned rate")
+        status = provider / "status"
+        if status.exists() and _strings(status) not in (["okay"], ["ok"]):
+            raise HardwareError("RP1 clock provider is not available")
+        for prop in root.rglob("assigned-clocks"):
+            if prop.parent != node and clocks[0] in _clock_references(prop, root):
+                raise HardwareError("Ambiguous RP1 PWM0 clock assignments")
+        # Match the driver's integer nanosecond tick calculation. Too high an
+        # assigned rate would make its divisor zero, not a usable PWM clock.
+        if (1_000_000_000 + rates[0] // 2) // rates[0] == 0:
+            raise HardwareError("RP1 assigned clock has no positive driver tick")
+        return rates[0], provider, arguments[0]
+    except FileNotFoundError as exc:
+        raise HardwareError("Missing RP1 assigned clock proof") from exc
+
+
+def _default_route(chip, node, gpio, root, rp1=False):
+    configured = _default_functions(node, root, rp1)
     if configured is None:
         return None
     routes, gpio_node, groups = configured
-    channel, function = _MUX[gpio]
-    if routes.get(gpio) != function:
-        return None
-    aliases = [
-        pin for pin, selected in routes.items() if _MUX.get(pin) == (channel, selected)
-    ]
+    if rp1:
+        if not _rp1_mux(gpio, routes.get(gpio)):
+            return None
+        channel = _RP1_CHANNELS[gpio]
+        aliases = [
+            pin
+            for pin, selected in routes.items()
+            if _rp1_mux(pin, selected) and _RP1_CHANNELS[pin] == channel
+        ]
+    else:
+        channel, function = _MUX[gpio]
+        if routes.get(gpio) != function:
+            return None
+        aliases = [
+            pin
+            for pin, selected in routes.items()
+            if _MUX.get(pin) == (channel, selected)
+        ]
     if aliases != [gpio]:
         raise HardwareError(
             f"PWM channel {channel} fans out to multiple pins: {aliases}"
+        )
+    if rp1:
+        rate, clock_node, clock_id = _rp1_clock(node, root)
+        return Route(
+            gpio,
+            chip,
+            node,
+            channel,
+            gpio_node,
+            groups,
+            "rp1",
+            rate,
+            clock_node,
+            clock_id,
         )
     return Route(gpio, chip, node, channel, gpio_node, groups)
 
 
 def discover(pin):
-    """Return a configured BCM route or None; conflicts/errors never mean fallback.
+    """Return a configured header route or None; errors never mean fallback.
 
-    Explicit gpiochip tuples are declined for BCM selection in this draft.
-    A configured known RP1 pin is rejected even with a tuple identity: it must
-    not reach a software GPIO request that could remux the existing hardware.
+    Explicit gpiochip tuples cannot prove header identity and are declined for
+    BCM. A configured RP1 tuple is rejected, not allowed to remux in software.
     Only read the live OF tree and sysfs; no GPIO requests or pinmux changes.
     """
     explicit, gpio = _pin_id(pin)
@@ -325,19 +430,13 @@ def discover(pin):
     if any(len(found) > 1 for found in candidates.values()):
         raise HardwareError("Multiple header PWM providers")
     if candidates["rp1"]:
-        configured = _default_functions(candidates["rp1"][0][1], root, rp1=True)
-        if configured is not None:
-            function = configured[0].get(gpio)
-            if function in ("pwm0", _RP1_PINS.get(gpio)) or (
-                gpio in _RP1_LEGACY and function == _RP1_LEGACY[gpio]
-            ):
-                raise HardwareError(
-                    f"GPIO{gpio} is routed to RP1 hardware PWM; this draft does not "
-                    "implement RP1 and refuses software GPIO remux"
-                )
-    if not candidates["bcm"]:
+        route = _default_route(*candidates["rp1"][0], gpio, root, rp1=True)
+        if route is not None and explicit is not None:
+            raise HardwareError("Unproven RP1 gpiochip tuple; refusing software remux")
+    elif candidates["bcm"]:
+        route = _default_route(*candidates["bcm"][0], gpio, root)
+    else:
         return None
-    route = _default_route(*candidates["bcm"][0], gpio, root)
     if route is not None and route.path.exists():
         raise HardwareError(f"Refusing pre-existing PWM export: {route.path}")
     return route
@@ -363,6 +462,26 @@ def _state(frequency, duty):
     return frequency, duty, period, period * duty // 65535
 
 
+def _rp1_counter_period_ns(route, period, duty_ns=0):
+    """Validate inferred driver counts and estimate inclusive-counter period."""
+    rate = _integer(route.clock_rate_hz, "RP1 assigned clock rate", 1)
+    tick = (1_000_000_000 + rate // 2) // rate
+    if tick <= 0:
+        raise ValueError("RP1 assigned clock has no positive driver tick")
+    ticks = (period + tick // 2) // tick
+    duty_ticks = (duty_ns + tick // 2) // tick
+    if (
+        not 0 < period <= RP1_MAX_PERIOD_NS
+        or not 1 <= ticks <= 0xFFFFFFFF
+        or not 0 <= duty_ns <= period
+        or not 0 <= duty_ticks <= ticks
+    ):
+        raise ValueError(
+            "PWM state cannot be represented by the RP1 driver clock/counts"
+        )
+    return ((ticks + 1) * 1_000_000_000 + rate - 1) // rate
+
+
 def _write_text(path, value):
     path.write_text(str(value) + "\n", encoding="ascii")
 
@@ -381,16 +500,41 @@ class HardwarePWM:
         self._cleanup_error = None
         frequency, duty, period, duty_ns = _state(frequency, duty)
         self.frequency = self.duty_cycle = self.period_ns = None
+        self._polarity = None
+        self._cleanup_period_ns = 0
         self._initial_period_ns = period
         if sys.platform != "linux":
             raise HardwareError("Kernel PWM requires Linux")
         if (
             not isinstance(route, Route)
-            or route.gpio not in _CHANNELS
-            or route.channel != _CHANNELS[route.gpio]
-            or route.of_node.name != "pwm@7e20c000"
+            or route.controller not in ("bcm", "rp1")
+            or (
+                route.controller == "bcm"
+                and (
+                    route.gpio not in _CHANNELS
+                    or route.channel != _CHANNELS[route.gpio]
+                    or route.of_node.name != "pwm@7e20c000"
+                )
+            )
+            or (
+                route.controller == "rp1"
+                and (
+                    route.gpio not in _RP1_CHANNELS
+                    or route.channel != _RP1_CHANNELS[route.gpio]
+                    or route.of_node.name != "pwm@98000"
+                    or route.clock_node is None
+                    or route.clock_node.name != "clocks@18000"
+                    or route.clock_node.parent != route.of_node.parent
+                    or route.clock_id != 17
+                )
+            )
         ):
-            raise HardwareError("Only an approved BCM header route may be exported")
+            raise HardwareError("Only an approved BCM/RP1 header route may be exported")
+        polarity = "normal"
+        if route.controller == "rp1":
+            if duty == 65535:
+                duty_ns, polarity = 0, "inversed"
+            self._record_rp1_period(period, duty_ns)
         if route.path.exists():
             raise HardwareError(f"Refusing pre-existing PWM export: {route.path}")
         with _owners_lock:
@@ -422,7 +566,9 @@ class HardwarePWM:
                 or current["polarity"] not in ("normal", "inversed")
             ):
                 raise HardwareError("Invalid cached state on fresh export")
-            if current["enable"]:
+            if route.controller == "rp1" and current["period"] > 0:
+                self._record_rp1_period(current["period"], current["duty_cycle"])
+            if current["enable"] or route.controller == "rp1":
                 self._write("enable", 0)
                 if self._read_state()["enable"] != 0:
                     raise HardwareError("Could not disable newly exported channel")
@@ -433,10 +579,17 @@ class HardwarePWM:
             # clear that at its old positive period before any period shrink.
             self._write("period", period)
             self._write("polarity", "normal")
+            if route.controller == "rp1":
+                self._write("duty_cycle", 0)
+                self._verify(period, 0, 0)
+                self._write("polarity", polarity)
             self._write("duty_cycle", duty_ns)
+            if route.controller == "rp1":
+                self._verify(period, duty_ns, 0, polarity)
             self._write("enable", 1)
-            self._verify(period, duty_ns, 1)
+            self._verify(period, duty_ns, 1, polarity)
             self.frequency, self.duty_cycle, self.period_ns = frequency, duty, period
+            self._polarity = polarity
         except BaseException as exc:
             self._error = exc
             try:
@@ -454,6 +607,10 @@ class HardwarePWM:
             raise HardwareError(
                 "PWM objects cannot be used after fork; create them in the child"
             )
+
+    def _record_rp1_period(self, period, duty_ns=0):
+        inferred = _rp1_counter_period_ns(self.route, period, duty_ns)
+        self._cleanup_period_ns = max(self._cleanup_period_ns, period, inferred)
 
     def _assert_identity(self):
         if not self._owned or self._identity is None:
@@ -481,11 +638,11 @@ class HardwarePWM:
             result[name] = value if name == "polarity" else int(value)
         return result
 
-    def _verify(self, period, duty_ns, enable):
+    def _verify(self, period, duty_ns, enable, polarity="normal"):
         expected = {
             "period": period,
             "duty_cycle": duty_ns,
-            "polarity": "normal",
+            "polarity": polarity,
             "enable": enable,
         }
         actual = self._read_state()
@@ -513,20 +670,42 @@ class HardwarePWM:
     def configure(self, frequency, duty):
         self._pid_guard()
         frequency, duty, period, duty_ns = _state(frequency, duty)
+        polarity = "normal"
+        if self.route.controller == "rp1":
+            if duty == 65535:
+                duty_ns, polarity = 0, "inversed"
+            # Validate before any sysfs action; no silent/hot software fallback.
+            _rp1_counter_period_ns(self.route, period, duty_ns)
         with self._lock:
             self._check_locked()
             try:
-                if period != self.period_ns:
+                if self.route.controller == "rp1" and (
+                    period != self.period_ns or polarity != self._polarity
+                ):
+                    # Fast scalar transition: disabled updates may truncate the
+                    # outgoing pulse. There is deliberately no setter wait.
+                    self._write("enable", 0)
+                    self._write("duty_cycle", 0)
+                    self._record_rp1_period(period, duty_ns)
+                    self._write("period", period)
+                    self._write("polarity", polarity)
+                    self._write("duty_cycle", duty_ns)
+                    self._verify(period, duty_ns, 0, polarity)
+                    self._write("enable", 1)
+                elif period != self.period_ns:
                     # Zero before shrinking even while enabled; scalar writes are
                     # not an atomic state update and may introduce a quiet gap.
                     self._write("duty_cycle", 0)
                     self._write("period", period)
-                self._write("duty_cycle", duty_ns)
-                self._verify(period, duty_ns, 1)
+                    self._write("duty_cycle", duty_ns)
+                else:
+                    self._write("duty_cycle", duty_ns)
+                self._verify(period, duty_ns, 1, polarity)
             except BaseException as exc:
                 self._error = exc
                 raise
             self.frequency, self.duty_cycle, self.period_ns = frequency, duty, period
+            self._polarity = polarity
 
     def close(self):
         self._pid_guard()
@@ -539,8 +718,12 @@ class HardwarePWM:
                 try:
                     current = self._read_state()
                     period = current["period"]
+                    if self.route.controller == "rp1" and period > 0:
+                        self._record_rp1_period(period, current["duty_cycle"])
                     if period <= 0:
                         period = max(self._initial_period_ns, current["duty_cycle"])
+                        if self.route.controller == "rp1":
+                            self._record_rp1_period(period)
                         self._write("period", period)
                     if current["polarity"] != "normal":
                         self._write("enable", 0)
@@ -548,6 +731,15 @@ class HardwarePWM:
                     self._write("duty_cycle", 0)
                     self._write("enable", 1)
                     self._verify(period, 0, 1)
+                    if self.route.controller == "rp1":
+                        # A qualification-pending, period-derived guard, NOT a
+                        # latch acknowledgment/electrical proof. Covers prior
+                        # accepted or ambiguous updates and inclusive counting.
+                        time.sleep(
+                            2 * self._cleanup_period_ns / 1_000_000_000
+                            + RP1_CLEANUP_GUARD_SECONDS
+                        )
+                        self._verify(period, 0, 1)
                     self._write("enable", 0)
                     self._verify(period, 0, 0)
                     self._assert_identity()

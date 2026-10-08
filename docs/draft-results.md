@@ -2739,3 +2739,89 @@ No analyzer or nonzero-duty PWM was used: this is physical GPIO functionality,
 not Pi 3 timing evidence or a repeat of the older 32-bit build/API coverage.
 See the Pi 3 subsection of the focused integration report for exact provenance
 and the separate byte-verified recovery archive.
+
+## Configured BCM/RP1 production-package hardware PWM, October 8
+
+The hardware-first draft now supports the dedicated RP1 header peripheral on
+Pi 5 as well as BCM on Pi 4 and earlier. This checkpoint tests the actual public
+`PWMOut` and `_hardware.py`, not the earlier kernel diagnostic prototypes.
+No PIO, direct register access, kernel replacement, boot-file edit, or fan-provider
+configuration was used. The user enabled the Pi 4 runtime GPIO18 PWM overlay;
+the authorized Pi 5 runtime overlay enabled only GPIO18. Both routes remain
+configured after releasing the channels.
+
+Ten finite idle captures cover ordinary PWM, exact endpoints, frequency changes,
+close-from-HIGH/reopen/close-from-interior, and duties 1/65534, once per board.
+GPIO18 is analyzer channel 2 on `test2-pi4.local` and channel 0 on `test-pi5.local`;
+GPIO23 is not driven. Pi 4 uses BCM `pwm@7e20c000`, channel 0, kernel
+`6.18.50+rpt-rpi-v8`. Pi 5 uses RP1 `pwm@98000`, channel 2, kernel
+`6.12.75+rpt-rpi-2712`. Exact three-file production sources and the helper are
+SHA256-pinned before import in isolated temporary directories. These are source
+deployments, not installed-wheel or publication evidence.
+
+Endpoint/margin captures use 100 MSa/s; other modes use 10 MSa/s, with no glitch
+filtering. Frozen limits are 0.2% of requested period/high width plus one nominal
+controller tick and two analyzer samples, and a final LOW tail of at least
+0.15 s. The 50-MHz clock allowance comes from DT assignments, not an analyzer
+calibration. Pi 5's final debugfs clock receipt also reports PWM0/PWM1 at 50 MHz.
+Remote timestamps prove API call order, not Saleae clock alignment. The offline
+method explicitly guards one complete cycle at each coarse steady-run boundary;
+all guarded cycles, unmatched intervals and every edge remain in its full ledger.
+
+| Ordinary request | Pi 4 median period / HIGH (µs) | Pi 5 median period / HIGH (µs) |
+| --- | ---: | ---: |
+| 50 Hz, duty 4915 | 19999.60 / 1499.90 | 20000.90 / 1500.00 |
+| 500 Hz, duty 32768 | 2000.00 / 1000.00 | 2000.10 / 1000.10 |
+| 25 kHz, duty 32768 | 40.00 / 20.00 | 40.00 / 20.00 |
+| Recovered 50 Hz, duty 32768 | 19999.65 / 10000.00 | 20000.90 / 10000.60 |
+
+Every identified steady group passes those limits, including recovered groups
+and near-endpoint requests. Duty 1 produces roughly 0.30–0.31-µs highs on both
+boards (ideal 0.30518 µs); this characterizes quantization, not 16-bit physical
+resolution. Both endpoint captures show a single uninterrupted HIGH plateau:
+269.995 ms on Pi 4 and 250.916 ms on Pi 5. RP1's inverse-zero representation
+therefore avoids the earlier observed normal-full-duty notch at the 10-ns
+nominal sample interval; sub-sample/analog behavior is not measured.
+
+All helpers finish with successful explicit cleanup and no remaining sysfs
+exports. Each lifecycle capture closes HIGH, reopens LOW, produces interior PWM,
+and closes again. Every final LOW tail exceeds 0.283 s. Firmware limiting flags
+stay zero; recorded postflight temperatures are about 31.6°C / 45.5°C. GPIO18 and
+GPIO23 read LOW afterward. Pi 5's cooling-fan consumer remains on its separate
+`pwm@9c000` provider; provider export lists are unchanged throughout.
+
+Transitions are **not glitch-free**. Shortened boundary pulses and quiet gaps
+are retained. In particular, Pi 4 frequency changes while HIGH include 2.1199-ms
+and 19.9996-ms LOW intervals. Its three HIGH plateaus cannot uniquely map four
+requests, so that mode's aggregate HIGH-hold acceptance stays `null`, not pass.
+The other nine scoped mode reports pass. Pi 5's frequency capture has one
+1.004292-s uninterrupted aggregate HIGH interval, without invented individual
+hold boundaries. One helper label says `high_initial_50` while its actual request
+receipt is 25 kHz; analysis uses the actual receipt and preserves the label.
+
+Ordinary setter call-plus-readback durations are about 1.46–1.94 ms on Pi 4 and
+0.40–0.89 ms on Pi 5. They are caller timings, not electrical adoption latency.
+RP1's roughly 41-ms cleanup guard after a 50-Hz request is deliberate and does
+not delay setters. These short idle observations do not establish loaded timing,
+independent hardware-channel coverage, older-board qualification, actuator safety,
+crash-safe sysfs ownership, or overall parity with software references.
+
+The package regression suite passes 196 tests with 29 platform skips; 119 tests
+cover fake hardware sysfs/DT behavior. The capture helper/wrapper have 38 fake
+tests and the offline analyzer has 20 synthetic tests. Package Ruff, formatting,
+diff checks and the warning-as-error documentation build pass. The recorded
+collector/test sources retain two nonfunctional Ruff import-order warnings;
+their frozen bytes are not reformatted after capture. Raw SAL/binary
+exports, receipts, exact sources, criteria and full analyses are saved separately
+in `hardware-evaluation/2026-10-08/configured-hardware-package-evaluation.tar.gz`.
+The first read-only postflight's recursive sysfs-loop diagnostic failure is
+retained; a subsequent nonrecursive check succeeds. No prior archive or rejected
+prototype result is rewritten or reclassified. See that archive's verification
+receipt for exact byte-comparison results.
+
+The recovery archive contains 79 regular files, is 1,823,338 bytes, and has SHA256
+`1e5731db5821bc0b6e6da0658d3490fe44c08f4f13d4553742886df438d987de`.
+Every member matches its original bytes, including all three production sources
+against the pinned manifest. The first AppleDouble-containing archive and failed
+empty verification receipt are preserved within the final metadata-free archive.
+No extraction or saved-SAL replay is claimed.

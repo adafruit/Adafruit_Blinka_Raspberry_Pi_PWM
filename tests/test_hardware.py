@@ -1,9 +1,9 @@
-"""BCM hardware backend contracts using temporary files, never GPIO or sysfs."""
+"""BCM/RP1 backend contracts using temporary files, never GPIO or real sysfs."""
 
 import errno
 import os
 import struct
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from types import SimpleNamespace
 
 import pytest
@@ -261,6 +261,23 @@ def rp1_provider(bench):
     (bench.chip / "device" / "driver").symlink_to(
         bench.driver, target_is_directory=True
     )
+    clock = bench.node.parent / "clocks@18000"
+    clock.mkdir()
+    strings(clock / "compatible", "raspberrypi,rp1-clocks")
+    cells(clock / "phandle", 77)
+    cells(clock / "#clock-cells", 1)
+    cells(bench.node / "clocks", 77, 17)
+    cells(bench.node / "assigned-clocks", 77, 17)
+    cells(bench.node / "assigned-clock-rates", 50_000_000)
+    bench.clock = clock
+
+
+@pytest.fixture
+def rp1bench(bench, monkeypatch):
+    rp1_provider(bench)
+    bench.sleeps = []
+    monkeypatch.setattr(hw.time, "sleep", bench.sleeps.append)
+    return bench
 
 
 @pytest.mark.parametrize("rp1", [False, True])
@@ -277,7 +294,7 @@ def test_mismatched_bound_driver_is_a_hard_error_not_fallback(bench, rp1):
 
 @pytest.mark.parametrize("gpio,function", [(12, 4), (13, 4), (18, 2), (19, 2)])
 @pytest.mark.parametrize("style", ["legacy", "generic", "hybrid"])
-def test_configured_rp1_pin_refuses_software_remux_without_implementing_backend(
+def test_configured_rp1_pin_selects_hardware_read_only(
     bench, gpio, function, style, io
 ):
     rp1_provider(bench)
@@ -289,20 +306,21 @@ def test_configured_rp1_pin_refuses_software_remux_without_implementing_backend(
     if style == "generic":
         (bench.group / "brcm,pins").unlink()
         strings(bench.group / "pins", f"gpio{gpio}")
-    with pytest.raises(hw.HardwareError, match="does not implement RP1.*remux"):
-        hw.discover(gpio)
+    route = hw.discover(gpio)
+    assert route.controller == "rp1" and route.channel == hw._RP1_CHANNELS[gpio]
+    assert route.clock_rate_hz == 50_000_000 and route.clock_node == bench.clock
+    assert route.clock_id == 17
     assert io.calls == []
 
 
 @pytest.mark.parametrize("gpio,alt", [(14, "alt0"), (15, "alt0"), (18, "alt3")])
-def test_rp1_generic_alt_routes_are_guarded(bench, gpio, alt):
+def test_rp1_generic_alt_routes_are_selected(bench, gpio, alt):
     rp1_provider(bench)
     (bench.group / "brcm,pins").unlink()
     (bench.group / "brcm,function").unlink()
     strings(bench.group / "pins", f"gpio{gpio}")
     strings(bench.group / "function", alt)
-    with pytest.raises(hw.HardwareError, match="RP1"):
-        hw.discover(gpio)
+    assert hw.discover(gpio).channel == hw._RP1_CHANNELS[gpio]
 
 
 def test_rp1_tuple_offset_guard_and_unrouted_pins(bench):
@@ -586,3 +604,422 @@ def test_after_fork_discards_inherited_registry_without_touching_exports(bench, 
 
 def test_os_pid_is_not_mocked_by_default():
     assert hw.os.getpid() == os.getpid()
+
+
+@pytest.mark.parametrize(
+    "gpio,channel", [(12, 0), (13, 1), (14, 2), (15, 3), (18, 2), (19, 3)]
+)
+def test_rp1_all_header_aliases_and_fresh_exports(rp1bench, io, gpio, channel):
+    cells(rp1bench.group / "brcm,pins", gpio)
+    (rp1bench.group / "brcm,function").unlink()
+    strings(rp1bench.group / "function", "pwm0")
+    route = hw.discover(gpio)
+    assert route.channel == channel and route.controller == "rp1"
+    output = hw.HardwarePWM(route, 20_000, 65535)
+    assert io.calls[0] == (route.chip / "export", channel)
+    assert output._read_state() == {
+        "period": 50_000,
+        "duty_cycle": 0,
+        "polarity": "inversed",
+        "enable": 1,
+    }
+    assert rp1bench.sleeps == []
+    output.close()
+    assert output.closed and route.path.exists() is False
+    assert rp1bench.sleeps == pytest.approx([0.00110004])
+
+
+@pytest.mark.parametrize("pins", [(14, 18), (15, 19)])
+def test_rp1_alias_fanout_is_not_software_fallback(rp1bench, pins):
+    cells(rp1bench.group / "brcm,pins", *pins)
+    (rp1bench.group / "brcm,function").unlink()
+    strings(rp1bench.group / "function", "pwm0")
+    with pytest.raises(hw.HardwareError, match="fans out"):
+        hw.discover(pins[0])
+
+
+def test_rp1_legacy_uart_selectors_are_not_pwm_routes(rp1bench):
+    cells(rp1bench.group / "brcm,pins", 14, 15)
+    cells(rp1bench.group / "brcm,function", 4)
+    assert hw.discover(14) is None and hw.discover(15) is None
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "missing",
+        "zero_rate",
+        "rate_list",
+        "duplicate",
+        "wrong_id",
+        "wrong_assigned",
+        "provider",
+        "clock_cells",
+        "unavailable",
+        "extra_clock",
+        "parents",
+        "u64",
+        "zero_tick",
+        "competing",
+    ],
+)
+def test_rp1_clock_proof_failures_refuse_export(rp1bench, io, problem):
+    node, clock = rp1bench.node, rp1bench.clock
+    if problem == "missing":
+        (node / "assigned-clock-rates").unlink()
+    elif problem == "zero_rate":
+        cells(node / "assigned-clock-rates", 0)
+    elif problem == "rate_list":
+        cells(node / "assigned-clock-rates", 50_000_000, 50_000_000)
+    elif problem == "duplicate":
+        other = clock.with_name("other-clock")
+        other.mkdir()
+        cells(other / "phandle", 77)
+    elif problem == "wrong_id":
+        cells(node / "clocks", 77, 18)
+        cells(node / "assigned-clocks", 77, 18)
+    elif problem == "wrong_assigned":
+        cells(node / "assigned-clocks", 77, 18)
+    elif problem == "provider":
+        strings(clock / "compatible", "fixed-clock")
+    elif problem == "clock_cells":
+        cells(clock / "#clock-cells", 0)
+    elif problem == "unavailable":
+        strings(clock / "status", "disabled")
+    elif problem == "extra_clock":
+        cells(node / "clocks", 77, 17, 77, 18)
+    elif problem == "parents":
+        cells(node / "assigned-clock-parents", 0)
+    elif problem == "u64":
+        cells(node / "assigned-clock-rates-u64", 0, 50_000_000)
+    elif problem == "zero_tick":
+        cells(node / "assigned-clock-rates", 4_000_000_000)
+    else:
+        competing = node.with_name("competing")
+        competing.mkdir()
+        cells(competing / "assigned-clocks", 77, 17)
+    with pytest.raises(hw.HardwareError):
+        hw.discover(18)
+    assert io.calls == []
+
+
+def test_rp1_ignores_unrelated_clock_assignments_and_optional_name(rp1bench):
+    cells(rp1bench.clock / "assigned-clocks", 77, 0, 77, 13)
+    cells(rp1bench.clock / "assigned-clock-rates", 1_000_000_000, 50_000_000)
+    strings(rp1bench.node / "clock-names", "anything")
+    assert hw.discover(18).clock_rate_hz == 50_000_000
+
+
+@pytest.mark.parametrize("frequency", [200_000_000, 1_000_000_000])
+def test_rp1_zero_quantized_period_rejected_before_export(rp1bench, io, frequency):
+    with pytest.raises(ValueError, match="RP1 driver clock/counts"):
+        hw.HardwarePWM(hw.discover(18), frequency, 32768)
+    assert io.calls == [] and hw._owners == set()
+
+
+def test_rp1_bounds_mirror_integer_driver_ticks(rp1bench, monkeypatch):
+    route = hw.discover(18)
+    assert hw._rp1_counter_period_ns(route, 2_000_000) == 2_000_020
+    with pytest.raises(ValueError):
+        hw._rp1_counter_period_ns(route, 9)
+    monkeypatch.setattr(hw, "RP1_MAX_PERIOD_NS", 1 << 40)
+    fastest = replace(route, clock_rate_hz=1_000_000_000)
+    assert hw._rp1_counter_period_ns(fastest, 0xFFFFFFFF) == 0x100000000
+    with pytest.raises(ValueError):
+        hw._rp1_counter_period_ns(fastest, 0x100000000)
+
+
+@pytest.mark.parametrize(
+    "polarity,enabled", [("normal", 0), ("normal", 1), ("inversed", 0), ("inversed", 1)]
+)
+def test_rp1_constructor_prepares_valid_normal_zero_from_stale_full(
+    rp1bench, io, polarity, enabled
+):
+    io.initial = {
+        "period": 20_000_000,
+        "duty_cycle": 20_000_000,
+        "polarity": polarity,
+        "enable": enabled,
+    }
+    output = hw.HardwarePWM(hw.discover(18), 500, 65535)
+    operations = [(path.name, value) for path, value in io.calls]
+    assert operations[:4] == [
+        ("export", 2),
+        ("enable", 0),
+        ("duty_cycle", 0),
+        ("period", 2_000_000),
+    ]
+    assert operations[4:] == [
+        ("polarity", "normal"),
+        ("duty_cycle", 0),
+        ("polarity", "inversed"),
+        ("duty_cycle", 0),
+        ("enable", 1),
+    ]
+    assert rp1bench.sleeps == []
+    output.close()
+    assert rp1bench.sleeps == pytest.approx([0.04100004])
+
+
+def test_rp1_fresh_inverse_zero_period_sets_valid_period_first(rp1bench, io):
+    io.initial["polarity"] = "inversed"
+    output = hw.HardwarePWM(hw.discover(18), 500, 32768)
+    operations = [(path.name, value) for path, value in io.calls]
+    assert operations[:3] == [("export", 2), ("enable", 0), ("period", 2_000_000)]
+    assert operations.index(("polarity", "normal")) > operations.index(
+        ("period", 2_000_000)
+    )
+    output.close()
+
+
+def test_rp1_fast_normal_high_half_low_frequency_sequence(rp1bench, io):
+    output = hw.HardwarePWM(hw.discover(18), 50, 4915)
+    io.calls.clear()
+    output.configure(50, 65535)
+    assert [(path.name, value) for path, value in io.calls] == [
+        ("enable", 0),
+        ("duty_cycle", 0),
+        ("period", 20_000_000),
+        ("polarity", "inversed"),
+        ("duty_cycle", 0),
+        ("enable", 1),
+    ]
+    io.calls.clear()
+    output.configure(50, 32768)
+    assert [(path.name, value) for path, value in io.calls] == [
+        ("enable", 0),
+        ("duty_cycle", 0),
+        ("period", 20_000_000),
+        ("polarity", "normal"),
+        ("duty_cycle", 10_000_152),
+        ("enable", 1),
+    ]
+    io.calls.clear()
+    output.configure(50, 0)
+    assert [(path.name, value) for path, value in io.calls] == [("duty_cycle", 0)]
+    io.calls.clear()
+    output.configure(500, 32768)
+    assert [(path.name, value) for path, value in io.calls] == [
+        ("enable", 0),
+        ("duty_cycle", 0),
+        ("period", 2_000_000),
+        ("polarity", "normal"),
+        ("duty_cycle", 1_000_015),
+        ("enable", 1),
+    ]
+    assert rp1bench.sleeps == []
+    output.close()
+    assert rp1bench.sleeps == pytest.approx([0.04100004])
+
+
+def test_rp1_period_shrink_zeros_larger_duty_first(rp1bench, io):
+    output = hw.HardwarePWM(hw.discover(18), 50, 60000)
+    io.calls.clear()
+    output.configure(500, 4915)
+    operations = [(path.name, value) for path, value in io.calls]
+    assert operations.index(("duty_cycle", 0)) < operations.index(("period", 2_000_000))
+    assert operations[0] == ("enable", 0)
+    output.close()
+
+
+@pytest.mark.parametrize("failure", ["period", "polarity", "duty_cycle", "enable"])
+def test_rp1_partial_update_is_sticky_without_hot_fallback(rp1bench, io, failure):
+    output = hw.HardwarePWM(hw.discover(18), 50, 32768)
+    io.failure = lambda path, value: (
+        path.name == failure and (failure != "enable" or value == 1)
+    )
+    with pytest.raises(OSError) as primary:
+        output.configure(500, 65535)
+    assert (
+        output.frequency,
+        output.duty_cycle,
+        output.period_ns,
+        output._polarity,
+    ) == (50, 32768, 20_000_000, "normal")
+    before = len(io.calls)
+    with pytest.raises(OSError) as sticky:
+        output.configure(50, 0)
+    assert sticky.value is primary.value and len(io.calls) == before
+    io.failure = None
+    output.close()
+    assert output.closed
+
+
+def test_rp1_high_cleanup_restores_normal_zero_before_guard_and_disable(
+    rp1bench, io, monkeypatch
+):
+    output = hw.HardwarePWM(hw.discover(18), 500, 65535)
+    io.calls.clear()
+    observed = []
+    monkeypatch.setattr(
+        hw.time, "sleep", lambda delay: observed.append((delay, output._read_state()))
+    )
+    output.close()
+    assert observed == [
+        (
+            pytest.approx(0.00500004),
+            {"period": 2_000_000, "duty_cycle": 0, "polarity": "normal", "enable": 1},
+        )
+    ]
+    assert [(path.name, value) for path, value in io.calls] == [
+        ("enable", 0),
+        ("polarity", "normal"),
+        ("duty_cycle", 0),
+        ("enable", 1),
+        ("enable", 0),
+        ("unexport", 2),
+    ]
+    assert output.closed and output not in hw._owners
+
+
+def test_rp1_guard_failure_retains_owner_for_deinit_retry(rp1bench, io, monkeypatch):
+    output = hw.HardwarePWM(hw.discover(18), 500, 65535)
+    failure = OSError("injected cleanup guard failure")
+
+    def fail(_delay):
+        raise failure
+
+    monkeypatch.setattr(hw.time, "sleep", fail)
+    io.calls.clear()
+    with pytest.raises(OSError) as error:
+        output.close()
+    assert error.value is failure and output._cleanup_error is failure
+    assert not output.closed and output in hw._owners
+    assert all(path.name != "unexport" for path, _value in io.calls)
+    assert io.calls[-1] == (output.route.path / "enable", 0)
+    monkeypatch.setattr(hw.time, "sleep", rp1bench.sleeps.append)
+    output.close()
+    assert output.closed and output not in hw._owners
+
+
+def test_rp1_unknown_zero_period_rollback_recovers_then_retries(rp1bench, io):
+    io.failure = lambda path, _value: path.name == "period"
+    with pytest.raises(OSError):
+        hw.HardwarePWM(hw.discover(18), 500, 65535)
+    pending = next(iter(hw._owners))
+    assert not pending.closed and pending.frequency is None
+    assert rp1bench.sleeps == []
+    io.failure = None
+    pending.close()
+    assert pending.closed and rp1bench.sleeps == pytest.approx([0.00500004])
+
+
+def test_rp1_fork_child_does_no_lock_io_or_sleep(rp1bench, io, monkeypatch):
+    output = hw.HardwarePWM(hw.discover(18), 500, 65535)
+
+    class ForbiddenLock:
+        def __enter__(self):
+            pytest.fail("fork child attempted inherited lock")
+
+    output._lock = ForbiddenLock()
+    monkeypatch.setattr(hw.os, "getpid", lambda: output._pid + 1)
+    before = len(io.calls)
+    for operation in (output.check, output.close, lambda: output.configure(50, 0)):
+        with pytest.raises(hw.HardwareError, match="after fork"):
+            operation()
+    hw._cleanup()
+    assert len(io.calls) == before and rp1bench.sleeps == []
+
+
+def test_rp1_independent_release_preserves_sibling_high(rp1bench, io):
+    first = hw.HardwarePWM(hw.discover(18), 50, 4915)
+    second = hw.HardwarePWM(hw.discover(13), 500, 65535)
+    first.close()
+    assert second._read_state() == {
+        "period": 2_000_000,
+        "duty_cycle": 0,
+        "polarity": "inversed",
+        "enable": 1,
+    }
+    second.check()
+    second.close()
+    assert first.closed and second.closed and hw._owners == set()
+
+
+def test_rp1_existing_export_and_kernel_consumer_are_hard_conflicts(rp1bench, io):
+    output = hw.HardwarePWM(hw.discover(18), 50, 4915)
+    before = len(io.calls)
+    with pytest.raises(hw.HardwareError, match="pre-existing"):
+        hw.discover(18)
+    assert len(io.calls) == before
+    output.close()
+    io.calls.clear()
+    io.busy = True
+    with pytest.raises(OSError) as error:
+        hw.HardwarePWM(hw.discover(18), 500, 0)
+    assert error.value.errno == errno.EBUSY
+    assert [(path.name, value) for path, value in io.calls] == [("export", 2)]
+    assert hw._owners == set()
+
+
+def test_rp1_invalid_setter_has_no_io_and_does_not_poison_owner(rp1bench, io):
+    output = hw.HardwarePWM(hw.discover(18), 20_000, 32768)
+    before = len(io.calls)
+    with pytest.raises(ValueError, match="RP1 driver clock/counts"):
+        output.configure(1_000_000_000, 32768)
+    assert len(io.calls) == before and output.frequency == 20_000
+    output.check()
+    output.close()
+
+
+def test_rp1_low_write_failure_still_disables_without_releasing(rp1bench, io):
+    output = hw.HardwarePWM(hw.discover(18), 500, 65535)
+    io.calls.clear()
+    io.failure = lambda path, value: path.name == "duty_cycle" and value == 0
+    with pytest.raises(OSError) as primary:
+        output.close()
+    assert output._cleanup_error is primary.value and output._error is primary.value
+    assert [(path.name, value) for path, value in io.calls] == [
+        ("enable", 0),
+        ("polarity", "normal"),
+        ("duty_cycle", 0),
+        ("enable", 0),
+    ]
+    assert not output.closed and output in hw._owners and rp1bench.sleeps == []
+    io.failure = None
+    output.close()
+    assert output.closed
+
+
+def test_rp1_cleanup_guard_cached_readback_failure_retains_export(
+    rp1bench, io, monkeypatch
+):
+    output = hw.HardwarePWM(hw.discover(18), 500, 32768)
+    original = output._verify
+    checks = []
+    failure = hw.HardwareError("injected post-guard readback failure")
+
+    def verify(period, duty, enable, polarity="normal"):
+        checks.append((period, duty, enable))
+        if len(checks) == 2:
+            raise failure
+        original(period, duty, enable, polarity)
+
+    monkeypatch.setattr(output, "_verify", verify)
+    io.calls.clear()
+    with pytest.raises(hw.HardwareError) as error:
+        output.close()
+    assert error.value is failure and not output.closed and output in hw._owners
+    assert all(path.name != "unexport" for path, _value in io.calls)
+    assert io.calls[-1] == (output.route.path / "enable", 0)
+    monkeypatch.setattr(output, "_verify", original)
+    output.close()
+    assert output.closed
+
+
+def test_rp1_unsupported_inherited_period_is_not_unbounded_cleanup(rp1bench, io):
+    io.initial = {
+        "period": 2_000_000_000,
+        "duty_cycle": 0,
+        "polarity": "normal",
+        "enable": 1,
+    }
+    with pytest.raises(ValueError, match="RP1 driver clock/counts"):
+        hw.HardwarePWM(hw.discover(18), 500, 0)
+    pending = next(iter(hw._owners))
+    assert not pending.closed and pending.route.path.exists()
+    assert [(path.name, value) for path, value in io.calls] == [
+        ("export", 2),
+        ("enable", 0),
+    ]
+    assert rp1bench.sleeps == []

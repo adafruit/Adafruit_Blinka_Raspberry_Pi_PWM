@@ -1,5 +1,14 @@
 # October 8: final Pi 4 installed-Blinka comparison
 
+Later the same day, the user's hardware-PWM priority led to configured BCM/RP1
+production support and ten focused GPIO18 captures on Pi 4/Pi 5. This does change
+the package's hardware path; the historical software comparison below stays
+unchanged. See the final section of `docs/draft-results.md` and
+`configured-hardware-package-evaluation.tar.gz`, with its separate byte-verification
+receipt. Nine scoped modes pass; Pi 4's aggregate HIGH frequency-hold mapping
+remains unqualified, with its boundary LOW gaps retained. No PIO or publication
+is involved.
+
 The planned four finite idle recordings are complete. This closes the physical
 PWM test sweep; no additional broad matrix or overnight monitoring is scheduled.
 Production PWM source is unchanged from `d5debaf`, both scheduler options remain

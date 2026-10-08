@@ -8,9 +8,8 @@
 Experimental CircuitPython-compatible `PWMOut` for Raspberry Pi, intended for
 use with Adafruit Blinka and existing CircuitPython libraries. The initial
 software engine preserves arbitrary-pin PWM with a native C scheduler. A new
-BCM hardware draft prefers already-configured, independently routed header PWM
-channels on Pi 4 and earlier. Pi 5 currently retains software PWM; its dedicated
-non-PIO RP1 hardware path is separate unfinished work.
+hardware draft prefers already-configured, independently routed header PWM
+channels: BCM on Pi 4 and earlier, and dedicated non-PIO RP1 PWM on Pi 5.
 
 **This is an evaluation draft, not a Blinka backend replacement.** Selected
 Pi 4 and Pi 5 bench measurements are preserved in the
@@ -44,21 +43,28 @@ not change Blinka's PWM backend, device permissions, or boot configuration.
 
 ## Hardware PWM draft
 
-Hardware selection requires an existing bound BCM2835 PWM driver and a default
-device-tree PWM route for the requested pin. GPIO12/18 share channel 0 and
-GPIO13/19 share channel 1; a channel routed to multiple physical pins is rejected
-to avoid driving an unexpected pin. No overlay is loaded automatically.
+Hardware selection requires an existing bound BCM2835 or RP1 PWM driver and a
+default device-tree PWM route for the requested pin. BCM GPIO12/18 share channel
+0 and GPIO13/19 share channel 1. RP1 GPIO12, 13, 14/18, and 15/19 select channels
+0, 1, 2, and 3 respectively; its separate fan controller is never selected.
+A channel routed to multiple physical pins is rejected to avoid driving an
+unexpected pin. No overlay is loaded automatically.
 Unconfigured pins use software PWM. Busy channels, permission failures and
 hardware startup errors are reported, not silently retried through GPIO.
 Hardware use also requires access to the provider's sysfs export controls and
-channel attributes; access to `/dev/gpiochip*` alone is not sufficient. A
-configured Pi 5 RP1 header route is currently refused, not taken over by software.
+channel attributes; access to `/dev/gpiochip*` alone is not sufficient. RP1 also
+requires an unambiguous device-tree assignment of its PWM clock; this is not
+measurement of the running clock rate.
 
 Hardware frequency is limited by the controller/driver and integer-nanosecond
 period representation, not the software backend's 10-kHz limit. Sysfs updates
 are separate writes and are not promised to be glitch-free or atomic. No PIO is
-used. The new hardware implementation has not yet completed physical qualification;
-existing recorded software measurements do not validate this path.
+used. Focused GPIO18 hardware captures on Pi 4 and Pi 5 are recorded in the
+results; broader pin/controller qualification remains pending. RP1 uses
+inverse polarity with zero raw duty for steady HIGH, avoiding the kernel driver's
+ordinary full-duty notch. Endpoint and period changes can shorten boundary pulses.
+RP1 cleanup includes a period-derived wait before disabling and releasing the
+channel; ordinary setters do not add settling sleeps.
 
 Only exports created by this instance are released. Sysfs exports are not
 file-descriptor leases: SIGKILL can leave PWM running, and unrelated sysfs writers

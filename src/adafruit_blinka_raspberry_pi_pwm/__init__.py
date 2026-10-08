@@ -39,7 +39,7 @@ class PWMOut:
     """PWM on a Blinka Pin or BCM GPIO number.
 
     Duty cycle has the CircuitPython 0..65535 range. Frequency is writable
-    only when variable_frequency=True. Already-configured BCM hardware PWM
+    only when variable_frequency=True. Already-configured BCM/RP1 hardware PWM
     is preferred; other pins use software PWM with a 1..10000 Hz configuration
     range, not a timing guarantee. Hardware limits come from its controller.
     """

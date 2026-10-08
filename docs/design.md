@@ -8,8 +8,9 @@ This draft is for evaluation before any Blinka backend replacement.
 ## Current implementation
 
 - Hardware-first selection for already-configured, singly routed BCM header
-  channels on Pi 4 and earlier; the new sysfs backend remains physically
-  unqualified. Pi 5 currently uses the existing software engine.
+  channels on Pi 4 and earlier and RP1 header channels on Pi 5. The new sysfs
+  backend has focused GPIO18 measurements on Pi 4 and Pi 5; independent hardware
+  channels and older-board coverage remain pending.
 - CircuitPython constructor, 16-bit duty cycle, fixed or variable frequency,
   context managers, and explicit/idempotent `deinit()`.
 - Native C worker per output, using monotonic absolute deadlines and no Python
@@ -33,17 +34,17 @@ late edges can shorten or eliminate pulses. There is no guarantee of 16-bit
 physical timing resolution. Matching or exceeding RPi.GPIO/lgpio is an acceptance
 criterion that still needs measurements, especially on Pi 1/Zero.
 
-### BCM hardware draft
+### Configured hardware draft
 
 Selection proves a bound header PWM provider and its default pinctrl route;
 it does not guess `pwmchip0`, select the audio/fan controller, load overlays or
-change pin multiplexing. GPIO12/18 alias channel 0 and GPIO13/19 alias channel 1.
+change pin multiplexing. On BCM, GPIO12/18 alias channel 0 and GPIO13/19 alias
+channel 1. On RP1, GPIO12, 13, 14/18, and 15/19 map to channels 0, 1, 2, and 3.
 Multiple routed pins on the selected channel are rejected rather than driven
 together. Missing hardware routes can use software; ambiguous, busy, permission
 or partially initialized hardware states cannot.
-An already-configured RP1 header route is refused until its hardware backend is
-implemented, so a software request cannot silently remux it. The separate Pi 5
-fan controller is not a header-output candidate.
+Unsupported configured routes are refused, so a software request cannot silently
+remux them. The separate Pi 5 fan controller is not a header-output candidate.
 
 The selected engine stays fixed for the output's lifetime. Hardware accepts
 representable positive integer-Hz requests outside the software 1--10000-Hz
@@ -51,6 +52,23 @@ range; the driver may reject requests its controller cannot implement. There
 is no guarantee of 16-bit physical duty resolution. Frequency and duty writes
 are non-atomic, with no artificial setter settling sleeps. Kernel cached state
 is not an electrical latch acknowledgement.
+
+RP1 uses normal polarity for LOW and interior duties, but inverse polarity with
+zero raw duty for HIGH. The RP1 counter's inclusive range otherwise leaves a
+one-clock LOW notch at ordinary full duty. Polarity and period changes disable
+the channel, zero duty before shrinking the period, program the target, and
+enable it again. These writes can truncate a boundary pulse; there is no
+glitch-free transition promise. RP1 shutdown restores enabled normal-zero and
+waits two conservatively calculated periods plus 1 ms before disabling/unexporting.
+That cleanup wait is not a hardware latch acknowledgement or an electrical
+guarantee, and it does not delay ordinary setters. The focused Pi 5 captures
+observe LOW after release from HIGH and interior PWM; see the recorded results.
+
+RP1 selection requires its own unambiguous device-tree PWM0 clock assignment to
+the bound RP1 clock provider. Tick limits are checked before export because the
+kernel driver does not validate its 32-bit range. The assigned rate is a requested
+clock rate, not actual-rate readback: failed clock assignment or external runtime
+clock changes remain limitations requiring bench verification.
 
 Fresh sysfs exports establish channel exclusion but are not FD/crash-safe
 leases. A replacement export is not borrowed or cleaned up. Creator-PID guards
@@ -135,7 +153,7 @@ where suitable lines are available. Each board needs explicit GPIO controller/
 line mapping, permissions/pinmux/ownership checks and waveform validation.
 Its `(pwmchip, channel)` mapping is not a `(gpiochip, line)` mapping. GPIOs claimed
 by an existing PWM driver must not be stolen for software output. Wider
-platform selection is not implemented in this draft. The BCM-only hardware engine
+platform selection is not implemented in this draft. The Pi-specific hardware engine
 does not make these other boards supported.
 
 ## Install from this draft
@@ -246,8 +264,8 @@ shared scheduler will improve our jitter. Preserve independent frequencies,
 interruptible updates/shutdown, per-output error reporting, and missed-period
 skipping when evaluating such a change.
 
-The BCM-only hardware draft is a first additional engine behind the same
-interface. RP1 kernel hardware PWM and `pwm-gpio` remain separate candidates;
+The configured BCM/RP1 hardware draft is an additional engine behind the same
+interface. `pwm-gpio` remains a separate candidate;
 `pwm-gpio` is not a hardware peripheral and must not be classified as one.
 Already-configured overlays should be reused; automatic setup, permissions,
 resource sharing, and cleanup need a separate design. Acceleration must preserve

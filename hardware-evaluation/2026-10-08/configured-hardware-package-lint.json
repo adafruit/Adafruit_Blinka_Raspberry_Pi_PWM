@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "production_package_ruff_check": "pass",
+  "production_package_ruff_format_check": "pass",
+  "git_diff_check": "pass",
+  "documentation_warnings_as_errors": "pass",
+  "hardware_free_package_tests": {"passed": 196, "skipped": 29},
+  "recording_and_analysis_fake_tests": {"passed": 58},
+  "recorded_lab_method_warnings": [
+    {"file": "capture_hardware_pwm_package.py", "rule": "I001", "kind": "import ordering"},
+    {"file": "test_hardware_pwm_package_eval.py", "rule": "I001", "kind": "import ordering"}
+  ],
+  "warnings_affect_behavior": false,
+  "frozen_recording_sources_reformatted": false
+}
