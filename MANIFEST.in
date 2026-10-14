@@ -1,6 +1,7 @@
 include LICENSE README.rst CONTRIBUTING.md CODE_OF_CONDUCT.md .pre-commit-config.yaml .readthedocs.yaml
 recursive-include src/native *.c *.h
 recursive-include tests *.c *.py
+include scripts/set_release_version.py
 recursive-include examples *.py
 recursive-include docs *.rst *.py *.txt Makefile
 prune docs/_build
