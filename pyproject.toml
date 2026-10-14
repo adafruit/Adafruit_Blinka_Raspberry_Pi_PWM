@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Adafruit-Blinka-Raspberry-Pi-PWM"
-version = "0.0.1.dev0"
+dynamic = ["version"]
 description = "Experimental CircuitPython-compatible Raspberry Pi PWM backends"
 readme = "README.rst"
 requires-python = ">=3.9"
@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "adafruit-circuitpython-motor"]
+test = ["pytest>=7", "adafruit-circuitpython-motor", "setuptools>=77"]
 docs = ["sphinx>=7,<9", "sphinx-rtd-theme>=2,<4"]
 dev = ["pre-commit>=4,<5", "ruff==0.16.10", "build>=1"]
 
@@ -36,6 +36,9 @@ namespaces = false
 
 [tool.setuptools]
 include-package-data = false
+
+[tool.setuptools.dynamic]
+version = {attr = "adafruit_blinka_raspberry_pi_pwm._version.__version__"}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

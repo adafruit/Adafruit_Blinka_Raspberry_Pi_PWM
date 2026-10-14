@@ -7,8 +7,8 @@ import weakref
 
 from ._hardware import HardwarePWM, discover
 from ._software import SoftwarePWM
+from ._version import __version__ as __version__
 
-__version__ = "0.0.1.dev0"
 __all__ = ["PWMOut"]
 
 _outputs = weakref.WeakSet()

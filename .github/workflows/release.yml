@@ -1,0 +1,99 @@
+name: Release packaging and publication
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name || 'v1.2.3' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || github.sha }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install build tools
+        run: python -m pip install --upgrade build twine
+      - name: Set package version from release tag
+        run: python scripts/set_release_version.py "$RELEASE_TAG"
+      - name: Verify runtime version matches release tag
+        env:
+          PYTHONPATH: src
+        run: |
+          python - <<'PY'
+          import os
+          from adafruit_blinka_raspberry_pi_pwm import __version__
+          from scripts.set_release_version import release_version
+          assert __version__ == release_version(os.environ['RELEASE_TAG'])
+          PY
+      - name: Build and verify source distribution
+        run: |
+          python -m build --sdist
+          python -m twine check dist/*
+          python - <<'PY'
+          import ast
+          import os
+          import tarfile
+          from email.parser import Parser
+          from pathlib import Path
+          from scripts.set_release_version import release_version
+          expected = release_version(os.environ['RELEASE_TAG'])
+          archives = list(Path('dist').glob('*.tar.gz'))
+          assert len(archives) == 1
+          with tarfile.open(archives[0]) as archive:
+              root = archive.getnames()[0].split('/')[0]
+              info = archive.extractfile(f'{root}/PKG-INFO').read().decode()
+              assert Parser().parsestr(info)['Version'] == expected
+              module = archive.extractfile(
+                  f'{root}/src/adafruit_blinka_raspberry_pi_pwm/_version.py'
+              ).read().decode()
+              versions = [ast.literal_eval(node.value) for node in ast.parse(module).body
+                          if isinstance(node, ast.Assign)
+                          and any(isinstance(target, ast.Name) and target.id == '__version__'
+                                  for target in node.targets)]
+              assert versions == [expected]
+          PY
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'release'
+        with:
+          name: python-source-distribution
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'release' && github.repository == 'adafruit/Adafruit_Blinka_Raspberry_Pi_PWM'
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-source-distribution
+          path: dist/
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Install publishing tools
+        run: python -m pip install --upgrade twine
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: ${{ secrets.pypi_username }}
+          TWINE_PASSWORD: ${{ secrets.pypi_password }}
+        run: |
+          if [ -z "$TWINE_USERNAME" ] || [ -z "$TWINE_PASSWORD" ]; then
+            echo "::error::Grant this repository access to pypi_username and pypi_password secrets."
+            exit 1
+          fi
+          python -m twine upload --non-interactive dist/*.tar.gz

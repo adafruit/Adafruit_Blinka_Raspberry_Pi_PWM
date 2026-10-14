@@ -31,6 +31,25 @@ The tests need a C compiler to exercise the production native scheduler.
 The GPIO extension builds only on Linux; macOS can run the API and scheduler
 tests. No automated test requests physical GPIO lines.
 
+## Releases
+
+The version lives in `src/adafruit_blinka_raspberry_pi_pwm/_version.py` with the
+Adafruit development placeholder `0.0.0+auto.0`. Package metadata and the runtime
+`__version__` both read that file. Do not manually bump project metadata.
+
+After merging release preparation, publish a new GitHub release from a tag such
+as `1.0.1` (or `v1.0.1`). The release workflow stages its normalized PEP 440
+version in the build checkout, checks distribution metadata, and publishes the
+source distribution using the repository's `pypi_username` and `pypi_password`
+Actions secrets, matching Stemma Detect. A maintainer must grant this repository
+access to those publishing credentials; do not put credentials in files or PRs.
+Push/PR checks exercise release packaging with a synthetic tag but cannot publish.
+
+Only source distributions are published initially. Linux installs compile the
+native extension and need a C compiler and Python development headers; native
+wheels need a separate platform-specific build setup. Existing releases/tags
+are not changed, and a tag predating this version module cannot use this workflow.
+
 ## Hardware validation
 
 Read [the usage guide](docs/usage.rst) before driving a pin or claiming
