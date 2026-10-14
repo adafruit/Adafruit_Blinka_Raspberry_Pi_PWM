@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "adafruit-circuitpython-motor"]
+test = ["pytest>=7", "adafruit-circuitpython-motor", "setuptools>=77"]
 docs = ["sphinx>=7,<9", "sphinx-rtd-theme>=2,<4"]
 dev = ["pre-commit>=4,<5", "ruff==0.16.10", "build>=1"]
 
