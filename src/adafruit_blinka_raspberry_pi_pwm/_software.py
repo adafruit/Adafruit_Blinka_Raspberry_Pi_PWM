@@ -26,8 +26,27 @@ def _load_gpiod():
     advice = (
         f"Software PWM requires {_PYPI_GPIOD} or verified maintained system bindings. "
         f"To install supported PyPI bindings, run: {command}\n"
-        "Then restart Python before using software PWM."
+        "Then restart Python before using software PWM. For maintained system "
+        "bindings, start a fresh process and use software PWMOut (or board with "
+        "Blinka's matching compatibility update) before directly importing gpiod; "
+        "do not reload bindings already imported elsewhere."
     )
+    try:
+        version = importlib.metadata.version("gpiod")
+    except importlib.metadata.PackageNotFoundError:
+        version = None
+    # The exception helper must verify files before the first import. Importing
+    # the system module here first would defeat its loaded-object attestation.
+    system_supported = version == "2.2.0" and is_supported_system_gpiod()
+    try:
+        pypi_supported = version is not None and SpecifierSet(">=2.2.2,<3").contains(
+            version
+        )
+    except (InvalidVersion, TypeError):
+        pypi_supported = False
+    if not pypi_supported and not system_supported:
+        raise RuntimeError(f"Unsupported gpiod version {version!r}. " + advice)
+
     try:
         gpiod = importlib.import_module("gpiod")
     except ModuleNotFoundError as error:
@@ -35,21 +54,14 @@ def _load_gpiod():
             raise
         raise RuntimeError(advice) from error
 
-    try:
-        version = importlib.metadata.version("gpiod")
-    except importlib.metadata.PackageNotFoundError:
-        version = None
     module_version = getattr(gpiod, "__version__", None)
     try:
-        supported = (
-            version is not None
-            and module_version is not None
-            and SpecifierSet(">=2.2.2,<3").contains(version)
-            and SpecifierSet(">=2.2.2,<3").contains(module_version)
-        )
+        loaded_supported = module_version is not None and SpecifierSet(
+            ">=2.2.2,<3"
+        ).contains(module_version)
     except (InvalidVersion, TypeError):
-        supported = False
-    if not supported and not is_supported_system_gpiod():
+        loaded_supported = False
+    if not loaded_supported and not system_supported:
         raise RuntimeError(
             f"Unsupported gpiod version {version!r} (loaded module {module_version!r}). "
             + advice

@@ -74,7 +74,7 @@ def test_unsupported_versions_fail_before_gpio_access(bindings, monkeypatch, ver
         in str(error.value)
     )
     assert "restart Python" in str(error.value)
-    assert state.checks == 1
+    assert state.checks == (1 if version == "2.2.0" else 0)
     assert state.calls == []
 
 
@@ -84,6 +84,43 @@ def test_verified_maintained_system_build_is_accepted(bindings):
     module.__version__ = "2.2.0"
     state.system = True
     assert _software._load_gpiod() is module
+    assert state.checks == 1
+    assert state.calls == []
+
+
+def test_system_bindings_are_verified_before_callers_first_import(
+    bindings, monkeypatch
+):
+    module, state = bindings
+    state.version = "2.2.0"
+    state.system = True
+    module.__version__ = "2.2.0"
+    monkeypatch.delitem(sys.modules, "gpiod")
+
+    def import_verified(name):
+        assert name == "gpiod"
+        assert state.checks == 1
+        assert "gpiod" not in sys.modules
+        return module
+
+    monkeypatch.setattr(_software.importlib, "import_module", import_verified)
+    assert _software._load_gpiod() is module
+    assert state.calls == []
+
+
+def test_unverified_old_bindings_are_rejected_without_import(bindings, monkeypatch):
+    _, state = bindings
+    state.version = "2.2.0"
+    monkeypatch.delitem(sys.modules, "gpiod")
+
+    def unexpected(name):
+        raise AssertionError("Unverified old bindings must not be imported")
+
+    monkeypatch.setattr(_software.importlib, "import_module", unexpected)
+    with pytest.raises(RuntimeError, match="Unsupported gpiod version") as error:
+        _software._load_gpiod()
+    assert "before directly importing gpiod" in str(error.value)
+    assert "do not reload" in str(error.value)
     assert state.checks == 1
     assert state.calls == []
 

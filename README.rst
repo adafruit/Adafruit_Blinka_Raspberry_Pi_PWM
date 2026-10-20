@@ -67,6 +67,14 @@ not accepted merely because they report ``2.2.0``; arbitrary PyPI
 verified system bindings without replacing them automatically. Ordinary
 installations still select current major-version-2 PyPI bindings.
 
+Verification must precede the first import of these system bindings. In a fresh
+Python process, construct a software ``PWMOut`` before directly importing
+``gpiod``, or import ``board`` with Blinka's matching compatibility update.
+Hardware-only output does not verify or import GPIO bindings. A system module
+already imported outside the verified paths is refused, even if its current
+files match; restart the process and correct the script's import order instead
+of reloading native bindings.
+
 Only software PWM validates or imports ``gpiod``. Configured hardware PWM does
 not need those bindings at runtime. See the
 `system setup guide <docs/usage.rst#system-setup>`_ for supported installation

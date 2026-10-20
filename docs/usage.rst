@@ -32,6 +32,17 @@ matches the installed dpkg-owned files and checksums. A version string alone
 is not sufficient, and other Trixie builds are not accepted automatically.
 Older PyPI ``gpiod==2.2.0`` and unrecognized replacement files remain unsupported.
 
+The files must be verified before their first import. Start a fresh Python
+process and construct a software ``PWMOut`` before importing raw ``gpiod``, or
+import ``board`` with Blinka's matching compatibility update. Hardware-only
+output does not verify or import GPIO bindings. The verified paths can share
+the resulting binding objects. If raw system bindings were already imported
+elsewhere, the process must restart, even when the files on disk now match an
+approved package: those loaded objects may predate an OS package replacement.
+Change scripts that import ``gpiod`` first to use the verified path first;
+repeatedly restarting the unchanged script will not help. Do not reload or
+replace an already-loaded native module.
+
 Have your system administrator install ``python3-libgpiod`` using the OS package
 manager. Then expose system packages to a new virtual environment:
 
