@@ -29,7 +29,8 @@ Dependencies
 
 * Python 3.9 or later on Raspberry Pi Linux with GPIO character-device v2 support.
 * The official ``gpiod`` Python bindings for software PWM: PyPI 2.2.2 or later
-  within major version 2, or a verified maintained Trixie system package.
+  within major version 2, or maintained Debian/Raspberry Pi OS system bindings
+  with the upstream 2.2.1 fixes.
 * Permission to access GPIO devices and, for hardware PWM, its sysfs controls.
 * A C compiler and matching Python development headers for source installation.
 
@@ -55,25 +56,22 @@ For a source checkout instead:
     source .venv/bin/activate
     python -m pip install .
 
-The initial maintained-system exception is Debian/Raspberry Pi OS Trixie's
-``python3-libgpiod`` source build ``2.2.1-2+deb13u1``. It reports the Python
-version ``2.2.0`` even though it includes later fixes. To use that system
-package, install it through your system administrator and create the virtual
-environment with ``python3 -m venv --system-site-packages .venv``. The runtime
-checks the approved package identity and its installed dpkg-owned files and
-checksums before accepting the older version label. Other Trixie builds are
-not accepted merely because they report ``2.2.0``; arbitrary PyPI
-``gpiod==2.2.0`` is **not** supported. The broader resolver bound preserves
-verified system bindings without replacing them automatically. Ordinary
-installations still select current major-version-2 PyPI bindings.
+Debian/Raspberry Pi OS may report Python ``gpiod`` version ``2.2.0`` while
+shipping fixed bindings from upstream libgpiod 2.2.1 or later. Software PWM
+accepts these dpkg-owned system bindings when their source package and loaded
+native API are both at least 2.2.1 within major version 2. This trusts the OS
+package manager; it is not a file-integrity monitor. Later distro package
+revisions and normal import order are supported, including importing ``board``
+or ``gpiod`` before software PWM. Package facts are cached within a process;
+restart Python after installing or upgrading bindings.
 
-Verification must precede the first import of these system bindings. In a fresh
-Python process, construct a software ``PWMOut`` before directly importing
-``gpiod``, or import ``board`` with Blinka's matching compatibility update.
-Hardware-only output does not verify or import GPIO bindings. A system module
-already imported outside the verified paths is refused, even if its current
-files match; restart the process and correct the script's import order instead
-of reloading native bindings.
+To use system bindings, have your system administrator install
+``python3-libgpiod`` and create the virtual environment with
+``python3 -m venv --system-site-packages .venv``. The broader resolver bound
+preserves these bindings without replacing them automatically. Arbitrary PyPI
+``gpiod==2.2.0`` is **not** supported: it has a native line-request lifetime
+bug that a function-presence check cannot detect. Ordinary installations still
+select current major-version-2 PyPI bindings; see the usage guide for details.
 
 Only software PWM validates or imports ``gpiod``. Configured hardware PWM does
 not need those bindings at runtime. See the

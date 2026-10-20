@@ -14,6 +14,14 @@ from packaging.version import InvalidVersion
 
 _LABELS = {"pinctrl-bcm2835", "pinctrl-bcm2711", "pinctrl-rp1"}
 _PYPI_GPIOD = "gpiod>=2.2.2,<3"
+_PYPI_GPIOD_VERSIONS = SpecifierSet(">=2.2.2,<3")
+
+
+def _supported_pypi_version(version):
+    try:
+        return version is not None and _PYPI_GPIOD_VERSIONS.contains(version)
+    except (InvalidVersion, TypeError):
+        return False
 
 
 def _load_gpiod():
@@ -24,29 +32,14 @@ def _load_gpiod():
         [sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_GPIOD]
     )
     advice = (
-        f"Software PWM requires {_PYPI_GPIOD} or verified maintained system bindings. "
+        f"Software PWM requires {_PYPI_GPIOD} or maintained system bindings. "
         f"To install supported PyPI bindings, run: {command}\n"
-        "Then restart Python before using software PWM. For maintained system "
-        "bindings, start a fresh process and use software PWMOut (or board with "
-        "Blinka's matching compatibility update) before directly importing gpiod; "
-        "do not reload bindings already imported elsewhere."
+        "Restart Python after changing installed packages."
     )
     try:
         version = importlib.metadata.version("gpiod")
     except importlib.metadata.PackageNotFoundError:
         version = None
-    # The exception helper must verify files before the first import. Importing
-    # the system module here first would defeat its loaded-object attestation.
-    system_supported = version == "2.2.0" and is_supported_system_gpiod()
-    try:
-        pypi_supported = version is not None and SpecifierSet(">=2.2.2,<3").contains(
-            version
-        )
-    except (InvalidVersion, TypeError):
-        pypi_supported = False
-    if not pypi_supported and not system_supported:
-        raise RuntimeError(f"Unsupported gpiod version {version!r}. " + advice)
-
     try:
         gpiod = importlib.import_module("gpiod")
     except ModuleNotFoundError as error:
@@ -55,13 +48,15 @@ def _load_gpiod():
         raise RuntimeError(advice) from error
 
     module_version = getattr(gpiod, "__version__", None)
-    try:
-        loaded_supported = module_version is not None and SpecifierSet(
-            ">=2.2.2,<3"
-        ).contains(module_version)
-    except (InvalidVersion, TypeError):
-        loaded_supported = False
-    if not loaded_supported and not system_supported:
+    pypi_supported = _supported_pypi_version(version) and _supported_pypi_version(
+        module_version
+    )
+    # Maintained distro bindings retain the Python 2.2.0 label despite carrying
+    # upstream fixes. Do not let selected metadata excuse a stale loaded module.
+    system_supported = (
+        version == module_version == "2.2.0" and is_supported_system_gpiod()
+    )
+    if not pypi_supported and not system_supported:
         raise RuntimeError(
             f"Unsupported gpiod version {version!r} (loaded module {module_version!r}). "
             + advice
