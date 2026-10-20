@@ -107,6 +107,7 @@ def test_native_start_failure_releases_request(monkeypatch):
         request_lines=lambda *args, **kwargs: request,
         LineSettings=lambda **kwargs: kwargs,
     )
+    monkeypatch.setattr(_software, "_load_gpiod", lambda: fake)
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setitem(sys.modules, "gpiod", fake)
     monkeypatch.setitem(
@@ -146,6 +147,7 @@ def test_scheduler_options_are_explicit_opt_ins(
         request_lines=lambda *args, **kwargs: request,
         LineSettings=lambda **kwargs: kwargs,
     )
+    monkeypatch.setattr(_software, "_load_gpiod", lambda: fake)
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setitem(sys.modules, "gpiod", fake)
     monkeypatch.setitem(

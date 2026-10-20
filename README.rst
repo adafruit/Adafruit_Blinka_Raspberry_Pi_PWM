@@ -28,18 +28,24 @@ Dependencies
 ============
 
 * Python 3.9 or later on Raspberry Pi Linux with GPIO character-device v2 support.
-* The official ``gpiod`` Python bindings for software PWM.
+* The official ``gpiod`` Python bindings for software PWM: PyPI 2.2.2 or later
+  within major version 2, or a verified maintained Trixie system package.
 * Permission to access GPIO devices and, for hardware PWM, its sysfs controls.
 * A C compiler and matching Python development headers for source installation.
 
 Examples using ``board`` also need Adafruit-Blinka; the servo example additionally
 needs ``adafruit-circuitpython-motor``.
 
-Installing from source
-======================
+Installation
+============
 
-Until a PyPI release is available, install from this repository in a virtual
-environment:
+In an activated virtual environment, install the published package:
+
+.. code-block:: shell
+
+    python -m pip install Adafruit-Blinka-Raspberry-Pi-PWM
+
+For a source checkout instead:
 
 .. code-block:: shell
 
@@ -48,6 +54,24 @@ environment:
     python3 -m venv .venv
     source .venv/bin/activate
     python -m pip install .
+
+The initial maintained-system exception is Debian/Raspberry Pi OS Trixie's
+``python3-libgpiod`` source build ``2.2.1-2+deb13u1``. It reports the Python
+version ``2.2.0`` even though it includes later fixes. To use that system
+package, install it through your system administrator and create the virtual
+environment with ``python3 -m venv --system-site-packages .venv``. The runtime
+checks the approved package identity and its installed dpkg-owned files and
+checksums before accepting the older version label. Other Trixie builds are
+not accepted merely because they report ``2.2.0``; arbitrary PyPI
+``gpiod==2.2.0`` is **not** supported. The broader resolver bound preserves
+verified system bindings without replacing them automatically. Ordinary
+installations still select current major-version-2 PyPI bindings.
+
+Only software PWM validates or imports ``gpiod``. Configured hardware PWM does
+not need those bindings at runtime. See the
+`system setup guide <docs/usage.rst#system-setup>`_ for supported installation
+and recovery commands. Installation does not run pip at runtime or bypass the
+OS externally-managed-environment policy.
 
 Usage
 =====

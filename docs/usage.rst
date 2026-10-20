@@ -16,6 +16,51 @@ the repository directory:
 
    python -m pip install .
 
+The normal installation obtains official major-version-2 ``gpiod`` bindings
+from PyPI. Software PWM requires PyPI ``gpiod>=2.2.2,<3``. Both the installed
+distribution metadata and the already-loaded module version are checked before
+opening a GPIO controller, so upgrading bindings in a running interpreter can
+require a Python restart. The library never runs pip itself.
+
+Maintained Trixie system bindings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The initial exception is Debian/Raspberry Pi OS Trixie's ``python3-libgpiod``
+source build ``2.2.1-2+deb13u1``. It contains required fixes but reports
+``2.2.0`` in Python. The runtime checks the approved package identity and
+matches the installed dpkg-owned files and checksums. A version string alone
+is not sufficient, and other Trixie builds are not accepted automatically.
+Older PyPI ``gpiod==2.2.0`` and unrecognized replacement files remain unsupported.
+
+Have your system administrator install ``python3-libgpiod`` using the OS package
+manager. Then expose system packages to a new virtual environment:
+
+.. code-block:: sh
+
+   python3 -m venv --system-site-packages .venv
+   source .venv/bin/activate
+   python -m pip install Adafruit-Blinka-Raspberry-Pi-PWM
+
+The package's resolver metadata permits the shared ``2.2.0`` label to avoid
+replacing maintained system bindings automatically. That lower resolver bound
+does not extend runtime support to arbitrary old PyPI builds. Software PWM
+verifies the selected bindings before requesting a GPIO. Configured hardware
+PWM does not import or validate ``gpiod`` at runtime.
+
+If software PWM rejects the bindings, install a supported PyPI build in the
+activated virtual environment and restart Python:
+
+.. code-block:: sh
+
+   python -m pip install --upgrade 'gpiod>=2.2.2,<3'
+
+Do not use ``--break-system-packages`` or modify system-managed Python files.
+On system Python, use a virtual environment rather than bypassing the OS
+externally-managed-environment policy.
+
+Permissions
+~~~~~~~~~~~
+
 Software output needs permission to access the GPIO character devices.
 Raspberry Pi OS normally provides this through the ``gpio`` group; check your
 system's configuration. Installation does not change permissions or boot setup.

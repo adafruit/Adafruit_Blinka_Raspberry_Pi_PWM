@@ -78,6 +78,33 @@ print(json.dumps([config["project"]["version"], source["__version__"]]))
     assert Version(metadata) == Version(source)
 
 
+def test_configured_hardware_output_does_not_import_gpio_bindings():
+    frequency, duty, closed = _run_python(
+        """
+forbidden = ("gpiod", "adafruit_blinka_raspberry_pi_pwm._native",
+             "adafruit_blinka_raspberry_pi_pwm._gpiod_compat")
+import adafruit_blinka_raspberry_pi_pwm as package
+
+class Hardware:
+    closed = False
+    def __init__(self, route, frequency, duty):
+        self.settings = (frequency, duty)
+    def check(self):
+        pass
+    def close(self):
+        self.closed = True
+
+package.discover = lambda pin: object()
+package.HardwarePWM = Hardware
+with package.PWMOut(18, frequency=25000, duty_cycle=32768) as output:
+    frequency, duty = output.frequency, output.duty_cycle
+    engine = output._engine
+print(json.dumps([frequency, duty, engine.closed]))
+"""
+    )
+    assert (frequency, duty, closed) == (25000, 32768, True)
+
+
 @pytest.fixture
 def release_helpers():
     return runpy.run_path(str(ROOT / "scripts" / "set_release_version.py"))
