@@ -16,6 +16,68 @@ the repository directory:
 
    python -m pip install .
 
+The normal installation obtains official major-version-2 ``gpiod`` bindings
+from PyPI. Software PWM requires PyPI ``gpiod>=2.2.2,<3``. Both the installed
+distribution metadata and the already-loaded module version are checked before
+opening a GPIO controller, so upgrading bindings in a running interpreter can
+require a Python restart. The library never runs pip itself.
+
+Maintained system bindings
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Debian/Raspberry Pi OS system bindings may report Python version ``2.2.0``
+while including upstream libgpiod 2.2.1 fixes. The runtime accepts that label
+when the selected Python files and native extension belong to the installed
+``python3-libgpiod`` package, and both its libgpiod source version and loaded
+native API are at least 2.2.1 within major version 2. No Debian revision or
+release codename is pinned, so later maintained package revisions remain
+eligible. This trusts the OS package manager, not arbitrary PyPI builds or
+files shadowing the system package. It does not checksum files or detect
+local modifications to system-owned files.
+
+Importing ``gpiod`` or Blinka's ``board``/``digitalio`` first is supported; there
+is no special first-import path. Read-only package-manager queries are cached
+per process rather than repeated for every output. Restart Python after
+changing installed bindings: do not reload or replace an already-loaded
+native module.
+
+PyPI ``gpiod==2.2.0`` has a native use-after-free in line requests, fixed in
+`upstream libgpiod 2.2.1 <https://github.com/brgl/libgpiod/commit/c497e29ca1f88963c525351e60af23ed896a2b8c>`_.
+The presence of ``Chip``, ``LineSettings``, and ``request_lines`` cannot detect
+that bug. PyPI 2.2.2 remains the conservative supported baseline, including an
+`additional native request lookup fix <https://github.com/brgl/libgpiod/commit/035ad74fdd69bc3cc3650d3db113ec2563805104>`_.
+Maintained system packages are checked separately because their Python version
+label does not describe their upstream source version.
+
+Have your system administrator install ``python3-libgpiod`` using the OS package
+manager. Then expose system packages to a new virtual environment:
+
+.. code-block:: sh
+
+   python3 -m venv --system-site-packages .venv
+   source .venv/bin/activate
+   python -m pip install Adafruit-Blinka-Raspberry-Pi-PWM
+
+The package's resolver metadata permits the shared ``2.2.0`` label to avoid
+replacing maintained system bindings automatically. That lower resolver bound
+does not extend runtime support to arbitrary old PyPI builds. Software PWM
+checks the selected bindings before requesting a GPIO. Configured hardware
+PWM does not import or validate ``gpiod`` at runtime.
+
+If software PWM rejects the bindings, install a supported PyPI build in the
+activated virtual environment and restart Python:
+
+.. code-block:: sh
+
+   python -m pip install --upgrade 'gpiod>=2.2.2,<3'
+
+Do not use ``--break-system-packages`` or modify system-managed Python files.
+On system Python, use a virtual environment rather than bypassing the OS
+externally-managed-environment policy.
+
+Permissions
+~~~~~~~~~~~
+
 Software output needs permission to access the GPIO character devices.
 Raspberry Pi OS normally provides this through the ``gpio`` group; check your
 system's configuration. Installation does not change permissions or boot setup.

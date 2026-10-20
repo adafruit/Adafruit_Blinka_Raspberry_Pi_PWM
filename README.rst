@@ -28,18 +28,25 @@ Dependencies
 ============
 
 * Python 3.9 or later on Raspberry Pi Linux with GPIO character-device v2 support.
-* The official ``gpiod`` Python bindings for software PWM.
+* The official ``gpiod`` Python bindings for software PWM: PyPI 2.2.2 or later
+  within major version 2, or maintained Debian/Raspberry Pi OS system bindings
+  with the upstream 2.2.1 fixes.
 * Permission to access GPIO devices and, for hardware PWM, its sysfs controls.
 * A C compiler and matching Python development headers for source installation.
 
 Examples using ``board`` also need Adafruit-Blinka; the servo example additionally
 needs ``adafruit-circuitpython-motor``.
 
-Installing from source
-======================
+Installation
+============
 
-Until a PyPI release is available, install from this repository in a virtual
-environment:
+In an activated virtual environment, install the published package:
+
+.. code-block:: shell
+
+    python -m pip install Adafruit-Blinka-Raspberry-Pi-PWM
+
+For a source checkout instead:
 
 .. code-block:: shell
 
@@ -48,6 +55,29 @@ environment:
     python3 -m venv .venv
     source .venv/bin/activate
     python -m pip install .
+
+Debian/Raspberry Pi OS may report Python ``gpiod`` version ``2.2.0`` while
+shipping fixed bindings from upstream libgpiod 2.2.1 or later. Software PWM
+accepts these dpkg-owned system bindings when their source package and loaded
+native API are both at least 2.2.1 within major version 2. This trusts the OS
+package manager; it is not a file-integrity monitor. Later distro package
+revisions and normal import order are supported, including importing ``board``
+or ``gpiod`` before software PWM. Package facts are cached within a process;
+restart Python after installing or upgrading bindings.
+
+To use system bindings, have your system administrator install
+``python3-libgpiod`` and create the virtual environment with
+``python3 -m venv --system-site-packages .venv``. The broader resolver bound
+preserves these bindings without replacing them automatically. Arbitrary PyPI
+``gpiod==2.2.0`` is **not** supported: it has a native line-request lifetime
+bug that a function-presence check cannot detect. Ordinary installations still
+select current major-version-2 PyPI bindings; see the usage guide for details.
+
+Only software PWM validates or imports ``gpiod``. Configured hardware PWM does
+not need those bindings at runtime. See the
+`system setup guide <docs/usage.rst#system-setup>`_ for supported installation
+and recovery commands. Installation does not run pip at runtime or bypass the
+OS externally-managed-environment policy.
 
 Usage
 =====

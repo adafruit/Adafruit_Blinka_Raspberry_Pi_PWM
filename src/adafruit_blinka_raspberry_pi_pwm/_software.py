@@ -1,12 +1,74 @@
 # SPDX-License-Identifier: MIT
 """Own a gpiod v2 line request while the native worker drives its descriptor."""
 
+import importlib
+import importlib.metadata
 import operator
 import os
+import shlex
 import sys
 from pathlib import Path
 
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
+
 _LABELS = {"pinctrl-bcm2835", "pinctrl-bcm2711", "pinctrl-rp1"}
+_PYPI_GPIOD = "gpiod>=2.2.2,<3"
+_PYPI_GPIOD_VERSIONS = SpecifierSet(">=2.2.2,<3")
+
+
+def _supported_pypi_version(version):
+    try:
+        return version is not None and _PYPI_GPIOD_VERSIONS.contains(version)
+    except (InvalidVersion, TypeError):
+        return False
+
+
+def _load_gpiod():
+    """Load supported bindings before opening any GPIO controller or request."""
+    from ._gpiod_compat import is_supported_system_gpiod
+
+    command = shlex.join(
+        [sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_GPIOD]
+    )
+    advice = (
+        f"Software PWM requires {_PYPI_GPIOD} or maintained system bindings. "
+        f"To install supported PyPI bindings, run: {command}\n"
+        "Restart Python after changing installed packages."
+    )
+    try:
+        version = importlib.metadata.version("gpiod")
+    except importlib.metadata.PackageNotFoundError:
+        version = None
+    try:
+        gpiod = importlib.import_module("gpiod")
+    except ModuleNotFoundError as error:
+        if error.name != "gpiod":
+            raise
+        raise RuntimeError(advice) from error
+
+    module_version = getattr(gpiod, "__version__", None)
+    pypi_supported = _supported_pypi_version(version) and _supported_pypi_version(
+        module_version
+    )
+    # Maintained distro bindings retain the Python 2.2.0 label despite carrying
+    # upstream fixes. Do not let selected metadata excuse a stale loaded module.
+    system_supported = (
+        version == module_version == "2.2.0" and is_supported_system_gpiod()
+    )
+    if not pypi_supported and not system_supported:
+        raise RuntimeError(
+            f"Unsupported gpiod version {version!r} (loaded module {module_version!r}). "
+            + advice
+        )
+    if not all(
+        callable(getattr(gpiod, name, None))
+        for name in ("Chip", "LineSettings", "request_lines")
+    ):
+        raise RuntimeError(
+            f"The installed gpiod module lacks the required v2 API. {advice}"
+        )
+    return gpiod
 
 
 def _pin_id(pin):
@@ -69,13 +131,13 @@ class SoftwarePWM:
         self.closed = False
         if sys.platform != "linux":
             raise RuntimeError("Raspberry Pi PWM requires Linux")
+        gpiod = _load_gpiod()
         try:
             from . import _native
         except ImportError as error:
             raise RuntimeError(
                 "Native PWM extension is missing; reinstall the package"
             ) from error
-        import gpiod
         from gpiod.line import Direction, Value
 
         self._native = _native
