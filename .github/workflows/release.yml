@@ -66,7 +66,7 @@ jobs:
                                   for target in node.targets)]
               assert versions == [expected]
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: github.event_name == 'release'
         with:
           name: python-source-distribution
